@@ -1,0 +1,25 @@
+[package]
+name = "helium-crypto"
+version = "0.0.1"
+authors = ["Marc Nijdam <marc@helium.com>"]
+edition = "2018"
+license = "Apache-2.0"
+
+[dependencies]
+thiserror = "1"
+bs58 = {version = "0.4", features=["check"]}
+signature = "*"
+rand_core = { version = "0.6", features = ["getrandom"] }
+ed25519-dalek = { git = "https://github.com/helium/ed25519-dalek", branch = "madninja/bump_rand" } 
+p256 = { git = "https://github.com/helium/elliptic-curves", branch="rg/compact", default-features=false, features=["arithmetic", "ecdsa", "sha256", "zeroize"] }
+
+[dev-dependencies]
+hex-literal = "0"
+rand = "0.8"
+sha2 = "0"
+
+[patch.crates-io]
+ecdsa = { git = "https://github.com/RustCrypto/signatures.git" }
+elliptic-curve = { git = "https://github.com/helium/traits.git", branch = "rg/compact" }
+
+
