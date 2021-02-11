@@ -35,4 +35,9 @@ jobs:
           args: -- -Dclippy::all
 
       - name: Test
-        run: cargo test
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: "-- --test-threads 1"
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v1.2.1

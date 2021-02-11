@@ -4,6 +4,8 @@ pub type PublicKey = ed25519_dalek::PublicKey;
 pub type Signature = ed25519_dalek::Signature;
 pub type Keypair = keypair::Keypair<ed25519_dalek::Keypair>;
 
+pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH;
+
 pub fn generate<R>(csprng: &mut R) -> Keypair
 where
     R: rand_core::CryptoRng + rand_core::RngCore,
@@ -21,6 +23,23 @@ impl keypair::Sign for Keypair {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
         Ok(signature.as_ref().to_vec())
+    }
+}
+
+impl FromBytes for Keypair {
+    fn from_bytes(input: &[u8]) -> error::Result<Self> {
+        let secret_key = ed25519_dalek::Keypair::from_bytes(input)?;
+        let public_key = secret_key.public;
+        Ok(Keypair {
+            inner: secret_key,
+            public_key: public_key::PublicKey::Ed25519(public_key),
+        })
+    }
+}
+
+impl IntoBytes for Keypair {
+    fn bytes_into(&self, output: &mut [u8]) {
+        output.copy_from_slice(&self.inner.to_bytes());
     }
 }
 
@@ -45,14 +64,14 @@ impl public_key::Verify for PublicKey {
 }
 
 impl IntoBytes for PublicKey {
-    fn into_bytes(&self, output: &mut [u8]) {
+    fn bytes_into(&self, output: &mut [u8]) {
         output.copy_from_slice(self.as_ref())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Sign, Verify};
+    use crate::{FromBytes, IntoBytes, Sign, Verify};
     use hex_literal::hex;
 
     #[test]
@@ -64,6 +83,18 @@ mod tests {
             .public_key
             .verify(b"hello world", &signature)
             .is_ok())
+    }
+
+    #[test]
+    fn bytes_roundtrip() {
+        use rand::rngs::OsRng;
+        let keypair = super::generate(&mut OsRng);
+        let mut output = [0u8; super::KEYPAIR_LENGTH];
+        keypair.bytes_into(&mut output);
+        assert_eq!(
+            keypair,
+            super::Keypair::from_bytes(&output).expect("keypair")
+        );
     }
 
     #[test]
