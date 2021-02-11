@@ -1,7 +1,7 @@
 use crate::{error, keypair, public_key, FromBytes, IntoBytes};
 use p256::{
     ecdsa,
-    elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::point::Decompact},
+    elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
     FieldBytes,
 };
 

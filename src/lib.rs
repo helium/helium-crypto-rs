@@ -20,14 +20,13 @@
 //! [JIVSOV]: https://tools.ietf.org/html/draft-jivsov-ecc-compact-05
 //!
 //! [HELIUM]: https://helium.com
-mod error;
-mod keypair;
-
-pub use error::Error;
 pub mod ecc_compact;
 pub mod ed25519;
+pub mod error;
 pub mod public_key;
 
+mod keypair;
+pub use error::Error;
 pub use keypair::Sign;
 pub use public_key::{PublicKey, Verify};
 

@@ -33,6 +33,21 @@ impl FromBytes for PublicKey {
     }
 }
 
+impl IntoBytes for PublicKey {
+    fn bytes_into(&self, output: &mut [u8]) {
+        match self {
+            Self::EccCompact(key) => {
+                output[0] = KEYTYPE_ECC_COMPACT;
+                key.bytes_into(&mut output[1..])
+            }
+            Self::Ed25519(key) => {
+                output[0] = KEYTYPE_ED25519;
+                key.bytes_into(&mut output[1..])
+            }
+        }
+    }
+}
+
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result {
         match self {
@@ -65,5 +80,13 @@ impl std::fmt::Display for PublicKey {
         }
         let encoded = bs58::encode(data.as_ref()).with_check().into_string();
         f.write_str(&encoded)
+    }
+}
+
+impl PublicKey {
+    pub fn to_bytes(&self) -> [u8; PUBLIC_KEY_LENGTH] {
+        let mut result = [0u8; PUBLIC_KEY_LENGTH];
+        self.bytes_into(&mut result);
+        result
     }
 }
