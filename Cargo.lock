@@ -198,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "helium-crypto"
-version = "0.0.1"
+version = "0.0.2-alpha.0"
 dependencies = [
  "bs58",
  "ed25519-dalek",
