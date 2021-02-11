@@ -11,11 +11,13 @@ pub trait Verify {
 pub const PUBLIC_KEY_LENGTH: usize = 33;
 
 /// A public key representing any of the supported public key types.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PublicKey {
     EccCompact(crate::ecc_compact::PublicKey),
     Ed25519(crate::ed25519::PublicKey),
 }
+
+impl Eq for PublicKey {}
 
 impl FromBytes for PublicKey {
     fn from_bytes(bytes: &[u8]) -> error::Result<Self> {
@@ -44,7 +46,7 @@ impl std::str::FromStr for PublicKey {
     type Err = error::Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let data = bs58::decode(s).with_check(Some(0)).into_vec()?;
-        Ok(Self::from_bytes(&data[1..])?)
+        Self::from_bytes(&data[1..])
     }
 }
 
@@ -54,11 +56,11 @@ impl std::fmt::Display for PublicKey {
         match self {
             Self::Ed25519(key) => {
                 data[1] = KEYTYPE_ED25519;
-                key.into_bytes(&mut data[2..]);
+                key.bytes_into(&mut data[2..]);
             }
             Self::EccCompact(key) => {
                 data[1] = KEYTYPE_ECC_COMPACT;
-                key.into_bytes(&mut data[2..]);
+                key.bytes_into(&mut data[2..]);
             }
         }
         let encoded = bs58::encode(data.as_ref()).with_check().into_string();

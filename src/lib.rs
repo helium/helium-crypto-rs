@@ -40,7 +40,7 @@ pub const KEYTYPE_ECC_COMPACT: u8 = 0;
 /// slice. The output slice is assumed to be of the right minimum size and
 /// implementors are expected to panic otherwise.
 pub trait IntoBytes {
-    fn into_bytes(&self, output: &mut [u8]);
+    fn bytes_into(&self, output: &mut [u8]);
 }
 
 /// Create an instance of the implementor from a given byte slice.

@@ -9,6 +9,8 @@ pub type PublicKey = p256::PublicKey;
 pub type Signature = ecdsa::Signature;
 pub type Keypair = keypair::Keypair<p256::SecretKey>;
 
+pub const KEYPAIR_LENGTH: usize = 32;
+
 pub fn generate<R>(csprng: &mut R) -> Keypair
 where
     R: rand_core::CryptoRng + rand_core::RngCore,
@@ -30,6 +32,23 @@ impl keypair::Sign for Keypair {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
         Ok(signature.to_der().as_bytes().to_vec())
+    }
+}
+
+impl FromBytes for Keypair {
+    fn from_bytes(input: &[u8]) -> error::Result<Self> {
+        let secret_key = p256::SecretKey::from_bytes(input)?;
+        let public_key = secret_key.public_key();
+        Ok(Keypair {
+            inner: secret_key,
+            public_key: public_key::PublicKey::EccCompact(public_key),
+        })
+    }
+}
+
+impl IntoBytes for Keypair {
+    fn bytes_into(&self, output: &mut [u8]) {
+        output.copy_from_slice(&self.inner.to_bytes());
     }
 }
 
@@ -58,7 +77,7 @@ impl FromBytes for PublicKey {
 }
 
 impl IntoBytes for PublicKey {
-    fn into_bytes(&self, output: &mut [u8]) {
+    fn bytes_into(&self, output: &mut [u8]) {
         let encoded = self
             .as_affine()
             .to_compact_encoded_point()
@@ -75,13 +94,25 @@ mod tests {
     use rand::rngs::OsRng;
 
     #[test]
-    fn sign_roundtrip_ecc() {
+    fn sign_roundtrip() {
         let keypair = super::generate(&mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
         assert!(keypair
             .public_key
             .verify(b"hello world", &signature)
             .is_ok())
+    }
+
+    #[test]
+    fn bytes_roundtrip() {
+        use rand::rngs::OsRng;
+        let keypair = super::generate(&mut OsRng);
+        let mut output = [0u8; super::KEYPAIR_LENGTH];
+        keypair.bytes_into(&mut output);
+        assert_eq!(
+            keypair,
+            super::Keypair::from_bytes(&output).expect("keypair")
+        );
     }
 
     #[test]
