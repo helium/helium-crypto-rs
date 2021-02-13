@@ -16,8 +16,10 @@ pub enum Error {
 pub enum DecodeError {
     #[error("b58 decode error")]
     B58(#[from] bs58::decode::Error),
-    #[error("unrecognized key type {0}")]
+    #[error("unrecognized type value {0}")]
     Type(u8),
+    #[error("unrecognized type string {0}")]
+    TypeString(String),
     #[error("not a compact key")]
     NotCompact,
 }
@@ -36,6 +38,10 @@ impl From<bs58::decode::Error> for Error {
 
 pub fn invalid_keytype(v: u8) -> Error {
     Error::Decode(DecodeError::Type(v))
+}
+
+pub fn invalid_keytype_str(v: &str) -> Error {
+    Error::Decode(DecodeError::TypeString(v.to_string()))
 }
 
 pub fn not_compact() -> Error {

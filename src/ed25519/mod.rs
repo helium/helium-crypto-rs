@@ -1,22 +1,15 @@
-use crate::{error, keypair, public_key, FromBytes, IntoBytes};
+use crate::{error, keypair, public_key, IntoBytes, KeyTag, KeyType, Network};
+use std::convert::TryFrom;
 
-pub type PublicKey = ed25519_dalek::PublicKey;
-pub type Signature = ed25519_dalek::Signature;
+#[derive(Debug, PartialEq, Clone)]
+pub struct PublicKey(ed25519_dalek::PublicKey);
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Signature(ed25519_dalek::Signature);
+
 pub type Keypair = keypair::Keypair<ed25519_dalek::Keypair>;
 
-pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH;
-
-pub fn generate<R>(csprng: &mut R) -> Keypair
-where
-    R: rand_core::CryptoRng + rand_core::RngCore,
-{
-    let secret_key = ed25519_dalek::Keypair::generate(csprng);
-    let public_key = secret_key.public;
-    Keypair {
-        inner: secret_key,
-        public_key: public_key::PublicKey::Ed25519(public_key),
-    }
-}
+pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
 
 impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> error::Result<Vec<u8>> {
@@ -26,40 +19,100 @@ impl keypair::Sign for Keypair {
     }
 }
 
-impl FromBytes for Keypair {
-    fn from_bytes(input: &[u8]) -> error::Result<Self> {
-        let secret_key = ed25519_dalek::Keypair::from_bytes(input)?;
-        let public_key = secret_key.public;
+impl TryFrom<&[u8]> for Keypair {
+    type Error = error::Error;
+
+    fn try_from(input: &[u8]) -> error::Result<Self> {
+        let network = Network::try_from(input[0])?;
+        let inner = ed25519_dalek::Keypair::from_bytes(&input[1..])?;
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
         Ok(Keypair {
-            inner: secret_key,
-            public_key: public_key::PublicKey::Ed25519(public_key),
+            inner,
+            network,
+            public_key,
         })
     }
 }
 
 impl IntoBytes for Keypair {
     fn bytes_into(&self, output: &mut [u8]) {
-        output.copy_from_slice(&self.inner.to_bytes());
+        output[0] = u8::from(KeyTag {
+            network: self.network,
+            key_type: KeyType::Ed25519,
+        });
+        output[1..].copy_from_slice(&self.inner.to_bytes());
+    }
+}
+
+impl Keypair {
+    pub fn generate<R>(network: Network, csprng: &mut R) -> Keypair
+    where
+        R: rand_core::CryptoRng + rand_core::RngCore,
+    {
+        let inner = ed25519_dalek::Keypair::generate(csprng);
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
+        Keypair {
+            network,
+            public_key,
+            inner,
+        }
+    }
+
+    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> error::Result<Keypair> {
+        let inner = ed25519_dalek::Keypair::from_bytes(entropy)?;
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
+        Ok(Keypair {
+            network,
+            public_key,
+            inner,
+        })
+    }
+
+    pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
+        let mut result = [0u8; KEYPAIR_LENGTH];
+        self.bytes_into(&mut result);
+        result
+    }
+}
+
+impl signature::Signature for Signature {
+    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
+        Ok(Signature(signature::Signature::from_bytes(input)?))
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl AsRef<[u8]> for Signature {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        Ok(self.inner.sign(msg))
+        Ok(Signature(self.inner.sign(msg)))
     }
 }
 
-impl FromBytes for Signature {
-    fn from_bytes(input: &[u8]) -> error::Result<Self> {
-        signature::Signature::from_bytes(input).map_err(error::Error::from)
+impl TryFrom<&[u8]> for Signature {
+    type Error = error::Error;
+
+    fn try_from(input: &[u8]) -> error::Result<Self> {
+        signature::Signature::from_bytes(input)
+            .map(Signature)
+            .map_err(error::Error::from)
     }
 }
 
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> std::result::Result<(), error::Error> {
         use ed25519_dalek::Verifier;
-        let signature = Signature::from_bytes(signature)?;
-        Verifier::<Signature>::verify(self, msg, &signature).map_err(error::Error::from)
+        let signature = Signature::try_from(signature)?;
+        Verifier::<ed25519_dalek::Signature>::verify(&self.0, msg, &signature.0)
+            .map_err(error::Error::from)
     }
 }
 
@@ -69,15 +122,33 @@ impl IntoBytes for PublicKey {
     }
 }
 
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = error::Error;
+
+    fn try_from(input: &[u8]) -> error::Result<Self> {
+        Ok(PublicKey(ed25519_dalek::PublicKey::from_bytes(
+            &input[1..],
+        )?))
+    }
+}
+
+impl AsRef<[u8]> for PublicKey {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{FromBytes, IntoBytes, Sign, Verify};
+    use super::Keypair;
+    use crate::{Network, Sign, Verify};
     use hex_literal::hex;
+    use std::convert::TryFrom;
 
     #[test]
     fn sign_roundtrip() {
         use rand::rngs::OsRng;
-        let keypair = super::generate(&mut OsRng);
+        let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
         assert!(keypair
             .public_key
@@ -88,13 +159,21 @@ mod tests {
     #[test]
     fn bytes_roundtrip() {
         use rand::rngs::OsRng;
-        let keypair = super::generate(&mut OsRng);
-        let mut output = [0u8; super::KEYPAIR_LENGTH];
-        keypair.bytes_into(&mut output);
+        let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
+        let bytes = keypair.to_bytes();
         assert_eq!(
             keypair,
-            super::Keypair::from_bytes(&output).expect("keypair")
+            super::Keypair::try_from(&bytes[..]).expect("keypair")
         );
+        assert_eq!(keypair.public_key.network, Network::MainNet);
+        // Testnet
+        let keypair = Keypair::generate(Network::TestNet, &mut OsRng);
+        let bytes = keypair.to_bytes();
+        assert_eq!(
+            keypair,
+            super::Keypair::try_from(&bytes[..]).expect("keypair")
+        );
+        assert_eq!(keypair.public_key.network, Network::TestNet);
     }
 
     #[test]
@@ -110,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn b58_roundtrip() {
+    fn b58_roundtrip_ecc() {
         const B58: &str = "14HZVR4bdF9QMowYxWrumcFBNfWnhDdD5XXA5za1fWwUhHxxFS1";
         let decoded: crate::PublicKey = B58.parse().expect("b58 key");
         assert_eq!(B58, decoded.to_string());
