@@ -1,61 +1,113 @@
-use crate::{error, keypair, public_key, FromBytes, IntoBytes};
+use crate::{error, keypair, public_key, IntoBytes, KeyTag, KeyType, Network};
 use p256::{
     ecdsa,
     elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
     FieldBytes,
 };
+use std::convert::TryFrom;
 
-pub type PublicKey = p256::PublicKey;
-pub type Signature = ecdsa::Signature;
+#[derive(Debug, PartialEq, Clone)]
+pub struct PublicKey(p256::PublicKey);
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Signature(ecdsa::Signature);
+
 pub type Keypair = keypair::Keypair<p256::SecretKey>;
 
-pub const KEYPAIR_LENGTH: usize = 32;
-
-pub fn generate<R>(csprng: &mut R) -> Keypair
-where
-    R: rand_core::CryptoRng + rand_core::RngCore,
-{
-    let mut secret_key = p256::SecretKey::random(&mut *csprng);
-    let mut public_key = secret_key.public_key();
-    while !bool::from(public_key.as_affine().is_compactable()) {
-        secret_key = p256::SecretKey::random(&mut *csprng);
-        public_key = secret_key.public_key();
-    }
-    Keypair {
-        inner: secret_key,
-        public_key: public_key::PublicKey::EccCompact(public_key),
-    }
-}
+pub const KEYPAIR_LENGTH: usize = 33;
 
 impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> error::Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
-        Ok(signature.to_der().as_bytes().to_vec())
+        Ok(signature.0.to_der().as_bytes().to_vec())
     }
 }
 
-impl FromBytes for Keypair {
-    fn from_bytes(input: &[u8]) -> error::Result<Self> {
-        let secret_key = p256::SecretKey::from_bytes(input)?;
-        let public_key = secret_key.public_key();
+impl TryFrom<&[u8]> for Keypair {
+    type Error = error::Error;
+    fn try_from(input: &[u8]) -> error::Result<Self> {
+        let network = Network::try_from(input[0])?;
+        let inner = p256::SecretKey::from_bytes(&input[1..])?;
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public_key()));
         Ok(Keypair {
-            inner: secret_key,
-            public_key: public_key::PublicKey::EccCompact(public_key),
+            network,
+            public_key,
+            inner,
         })
     }
 }
 
 impl IntoBytes for Keypair {
     fn bytes_into(&self, output: &mut [u8]) {
-        output.copy_from_slice(&self.inner.to_bytes());
+        output[0] = u8::from(KeyTag {
+            network: self.network,
+            key_type: KeyType::EccCompact,
+        });
+        output[1..].copy_from_slice(&self.inner.to_bytes());
+    }
+}
+
+impl Keypair {
+    pub fn generate<R>(network: Network, csprng: &mut R) -> Keypair
+    where
+        R: rand_core::CryptoRng + rand_core::RngCore,
+    {
+        let mut inner = p256::SecretKey::random(&mut *csprng);
+        let mut public_key = inner.public_key();
+        while !bool::from(public_key.as_affine().is_compactable()) {
+            inner = p256::SecretKey::random(&mut *csprng);
+            public_key = inner.public_key();
+        }
+        Keypair {
+            network,
+            public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
+            inner,
+        }
+    }
+
+    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> error::Result<Keypair> {
+        let inner = p256::SecretKey::from_bytes(entropy)?;
+        let public_key = inner.public_key();
+        if !bool::from(public_key.as_affine().is_compactable()) {
+            return Err(error::not_compact());
+        }
+        Ok(Keypair {
+            network,
+            public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
+            inner,
+        })
+    }
+
+    pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
+        let mut result = [0u8; KEYPAIR_LENGTH];
+        self.bytes_into(&mut result);
+        result
+    }
+}
+
+impl signature::Signature for Signature {
+    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
+        Ok(Signature(signature::Signature::from_bytes(input)?))
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl AsRef<[u8]> for Signature {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         // TODO: Thre has to be a way to avoid cloning for every signature?
-        Ok(p256::ecdsa::SigningKey::from(self.inner.clone()).sign(msg))
+        Ok(Signature(
+            p256::ecdsa::SigningKey::from(self.inner.clone()).sign(msg),
+        ))
     }
 }
 
@@ -63,14 +115,18 @@ impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result {
         use signature::Verifier;
         let signature = p256::ecdsa::Signature::from_der(signature).map_err(error::Error::from)?;
-        Ok(p256::ecdsa::VerifyingKey::from(self).verify(msg, &signature)?)
+        Ok(p256::ecdsa::VerifyingKey::from(self.0).verify(msg, &signature)?)
     }
 }
 
-impl FromBytes for PublicKey {
-    fn from_bytes(input: &[u8]) -> error::Result<Self> {
-        match p256::AffinePoint::decompact(&FieldBytes::from_slice(input)).into() {
-            Some(point) => Ok(p256::PublicKey::from_affine(point).map_err(error::Error::from)?),
+impl TryFrom<&[u8]> for PublicKey {
+    type Error = error::Error;
+
+    fn try_from(input: &[u8]) -> error::Result<Self> {
+        match p256::AffinePoint::decompact(&FieldBytes::from_slice(&input[1..])).into() {
+            Some(point) => Ok(PublicKey(
+                p256::PublicKey::from_affine(point).map_err(error::Error::from)?,
+            )),
             None => Err(error::not_compact()),
         }
     }
@@ -79,6 +135,7 @@ impl FromBytes for PublicKey {
 impl IntoBytes for PublicKey {
     fn bytes_into(&self, output: &mut [u8]) {
         let encoded = self
+            .0
             .as_affine()
             .to_compact_encoded_point()
             .expect("compact point");
@@ -88,14 +145,14 @@ impl IntoBytes for PublicKey {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{FromBytes, Sign, Verify};
+    use super::{Keypair, PublicKey, TryFrom};
+    use crate::{Network, Sign, Verify};
     use hex_literal::hex;
     use rand::rngs::OsRng;
 
     #[test]
     fn sign_roundtrip() {
-        let keypair = super::generate(&mut OsRng);
+        let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
         assert!(keypair
             .public_key
@@ -106,12 +163,11 @@ mod tests {
     #[test]
     fn bytes_roundtrip() {
         use rand::rngs::OsRng;
-        let keypair = super::generate(&mut OsRng);
-        let mut output = [0u8; super::KEYPAIR_LENGTH];
-        keypair.bytes_into(&mut output);
+        let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
+        let bytes = keypair.to_bytes();
         assert_eq!(
             keypair,
-            super::Keypair::from_bytes(&output).expect("keypair")
+            super::Keypair::try_from(&bytes[..]).expect("keypair")
         );
     }
 
@@ -137,7 +193,7 @@ mod tests {
     #[test]
     fn non_compact_key() {
         const NON_COMPACT_KEY: &[u8] =
-            &hex!("3ca9d8667de0c07aa71d98b3c8065d2e97ab7bb9cb8776bcc0577a7ac58acd4e");
-        assert!(PublicKey::from_bytes(NON_COMPACT_KEY).is_err());
+            &hex!("003ca9d8667de0c07aa71d98b3c8065d2e97ab7bb9cb8776bcc0577a7ac58acd4e");
+        assert!(PublicKey::try_from(NON_COMPACT_KEY).is_err());
     }
 }
