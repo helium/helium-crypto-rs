@@ -22,6 +22,8 @@ pub enum DecodeError {
     TypeString(String),
     #[error("not a compact key")]
     NotCompact,
+    #[error("missing type byte")]
+    MissingType,
 }
 
 impl From<elliptic_curve::Error> for Error {
@@ -46,4 +48,8 @@ pub fn invalid_keytype_str(v: &str) -> Error {
 
 pub fn not_compact() -> Error {
     Error::Decode(DecodeError::NotCompact)
+}
+
+pub fn missing_keytype() -> Error {
+    Error::Decode(DecodeError::MissingType)
 }

@@ -62,6 +62,9 @@ impl TryFrom<Vec<u8>> for PublicKey {
 impl TryFrom<&[u8]> for PublicKey {
     type Error = error::Error;
     fn try_from(bytes: &[u8]) -> error::Result<Self> {
+        if bytes.is_empty() {
+            return Err(error::missing_keytype());
+        }
         Ok(Self {
             network: Network::try_from(bytes[0])?,
             inner: PublicKeyRepr::try_from(bytes)?,
@@ -72,6 +75,9 @@ impl TryFrom<&[u8]> for PublicKey {
 impl TryFrom<&[u8]> for PublicKeyRepr {
     type Error = error::Error;
     fn try_from(bytes: &[u8]) -> error::Result<Self> {
+        if bytes.is_empty() {
+            return Err(error::missing_keytype());
+        }
         match KeyType::try_from(bytes[0])? {
             KeyType::EccCompact => Ok(Self::EccCompact(ecc_compact::PublicKey::try_from(bytes)?)),
             KeyType::Ed25519 => Ok(Self::Ed25519(ed25519::PublicKey::try_from(bytes)?)),
