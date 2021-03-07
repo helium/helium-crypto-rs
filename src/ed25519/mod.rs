@@ -59,7 +59,9 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> error::Result<Keypair> {
-        let inner = ed25519_dalek::Keypair::from_bytes(entropy)?;
+        let secret = ed25519_dalek::SecretKey::from_bytes(entropy)?;
+        let public = ed25519_dalek::PublicKey::from(&secret);
+        let inner = ed25519_dalek::Keypair { secret, public };
         let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
         Ok(Keypair {
             network,
@@ -144,6 +146,19 @@ mod tests {
     use crate::{Network, Sign, Verify};
     use hex_literal::hex;
     use std::convert::TryFrom;
+
+    #[test]
+    fn seed() {
+        const ENTROPY: [u8; 32] = [
+            248, 55, 78, 168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170, 248, 55, 78,
+            168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170,
+        ];
+        let keypair = Keypair::generate_from_entropy(Network::MainNet, &ENTROPY).expect("keypair");
+        assert_eq!(
+            "14MRZY2jc2ABDq1faCCMmXrkm2PXY9UBRTP1j9PWnFTKnCb7Hyn",
+            keypair.public_key.to_string()
+        );
+    }
 
     #[test]
     fn sign_roundtrip() {
