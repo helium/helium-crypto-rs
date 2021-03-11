@@ -1,4 +1,3 @@
-use p256::elliptic_curve;
 use thiserror::Error;
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
@@ -7,7 +6,7 @@ pub enum Error {
     #[error("decode error")]
     Decode(#[from] DecodeError),
     #[error("elliptic_curve error")]
-    EccCompact(elliptic_curve::Error),
+    EccCompact(p256::elliptic_curve::Error),
     #[error("signature error")]
     Signature(#[from] signature::Error),
 }
@@ -26,30 +25,34 @@ pub enum DecodeError {
     MissingType,
 }
 
-impl From<elliptic_curve::Error> for Error {
-    fn from(v: elliptic_curve::Error) -> Self {
+impl From<bs58::decode::Error> for Error {
+    fn from(v: bs58::decode::Error) -> Self {
+        Self::from(DecodeError::from(v))
+    }
+}
+
+// Required since the standard thiserror implementation and the way p256 does
+// errors does not match all the required traits
+impl From<p256::elliptic_curve::Error> for Error {
+    fn from(v: p256::elliptic_curve::Error) -> Self {
         Self::EccCompact(v)
     }
 }
 
-impl From<bs58::decode::Error> for Error {
-    fn from(v: bs58::decode::Error) -> Self {
-        Error::Decode(DecodeError::B58(v))
+impl Error {
+    pub fn invalid_keytype(v: u8) -> Error {
+        Error::Decode(DecodeError::Type(v))
     }
-}
 
-pub fn invalid_keytype(v: u8) -> Error {
-    Error::Decode(DecodeError::Type(v))
-}
+    pub fn invalid_keytype_str(v: &str) -> Error {
+        Error::Decode(DecodeError::TypeString(v.to_string()))
+    }
 
-pub fn invalid_keytype_str(v: &str) -> Error {
-    Error::Decode(DecodeError::TypeString(v.to_string()))
-}
+    pub fn not_compact() -> Error {
+        Error::Decode(DecodeError::NotCompact)
+    }
 
-pub fn not_compact() -> Error {
-    Error::Decode(DecodeError::NotCompact)
-}
-
-pub fn missing_keytype() -> Error {
-    Error::Decode(DecodeError::MissingType)
+    pub fn missing_keytype() -> Error {
+        Error::Decode(DecodeError::MissingType)
+    }
 }

@@ -96,7 +96,7 @@ impl TryFrom<u8> for Network {
         match v & 0xF0 {
             NETTYPE_MAIN => Ok(Self::MainNet),
             NETTYPE_TEST => Ok(Self::TestNet),
-            _ => Err(error::invalid_keytype(v)),
+            _ => Err(Error::invalid_keytype(v)),
         }
     }
 }
@@ -107,7 +107,7 @@ impl FromStr for Network {
         match s {
             NETTYPE_MAIN_STR => Ok(Self::MainNet),
             NETTYPE_TEST_STR => Ok(Self::TestNet),
-            _ => Err(error::invalid_keytype_str(s)),
+            _ => Err(Error::invalid_keytype_str(s)),
         }
     }
 }
@@ -136,7 +136,7 @@ impl FromStr for KeyType {
         match s {
             KEYTYPE_ED25519_STR => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT_STR => Ok(Self::EccCompact),
-            _ => Err(error::invalid_keytype_str(s)),
+            _ => Err(Error::invalid_keytype_str(s)),
         }
     }
 }
@@ -156,7 +156,7 @@ impl TryFrom<u8> for KeyType {
         match v & 0xF {
             KEYTYPE_ED25519 => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT => Ok(Self::EccCompact),
-            _ => Err(error::invalid_keytype(v)),
+            _ => Err(Error::invalid_keytype(v)),
         }
     }
 }

@@ -1,4 +1,7 @@
-use crate::{error, keypair, public_key, IntoBytes, KeyTag, KeyType, Network};
+use crate::{
+    error::{Error, Result},
+    keypair, public_key, IntoBytes, KeyTag, KeyType, Network,
+};
 use p256::{
     ecdsa,
     elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
@@ -17,7 +20,7 @@ pub type Keypair = keypair::Keypair<p256::SecretKey>;
 pub const KEYPAIR_LENGTH: usize = 33;
 
 impl keypair::Sign for Keypair {
-    fn sign(&self, msg: &[u8]) -> error::Result<Vec<u8>> {
+    fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
         Ok(signature.0.to_der().as_bytes().to_vec())
@@ -25,8 +28,8 @@ impl keypair::Sign for Keypair {
 }
 
 impl TryFrom<&[u8]> for Keypair {
-    type Error = error::Error;
-    fn try_from(input: &[u8]) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
         let inner = p256::SecretKey::from_bytes(&input[1..])?;
         let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public_key()));
@@ -66,11 +69,11 @@ impl Keypair {
         }
     }
 
-    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> error::Result<Keypair> {
+    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
         let inner = p256::SecretKey::from_bytes(entropy)?;
         let public_key = inner.public_key();
         if !bool::from(public_key.as_affine().is_compactable()) {
-            return Err(error::not_compact());
+            return Err(Error::not_compact());
         }
         Ok(Keypair {
             network,
@@ -112,22 +115,22 @@ impl signature::Signer<Signature> for Keypair {
 }
 
 impl public_key::Verify for PublicKey {
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result {
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use signature::Verifier;
-        let signature = p256::ecdsa::Signature::from_der(signature).map_err(error::Error::from)?;
+        let signature = p256::ecdsa::Signature::from_der(signature).map_err(Error::from)?;
         Ok(p256::ecdsa::VerifyingKey::from(self.0).verify(msg, &signature)?)
     }
 }
 
 impl TryFrom<&[u8]> for PublicKey {
-    type Error = error::Error;
+    type Error = Error;
 
-    fn try_from(input: &[u8]) -> error::Result<Self> {
+    fn try_from(input: &[u8]) -> Result<Self> {
         match p256::AffinePoint::decompact(&FieldBytes::from_slice(&input[1..])).into() {
             Some(point) => Ok(PublicKey(
-                p256::PublicKey::from_affine(point).map_err(error::Error::from)?,
+                p256::PublicKey::from_affine(point).map_err(Error::from)?,
             )),
-            None => Err(error::not_compact()),
+            None => Err(Error::not_compact()),
         }
     }
 }

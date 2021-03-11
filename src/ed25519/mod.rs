@@ -1,4 +1,7 @@
-use crate::{error, keypair, public_key, IntoBytes, KeyTag, KeyType, Network};
+use crate::{
+    error::{Error, Result},
+    keypair, public_key, IntoBytes, KeyTag, KeyType, Network,
+};
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -12,7 +15,7 @@ pub type Keypair = keypair::Keypair<ed25519_dalek::Keypair>;
 pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
 
 impl keypair::Sign for Keypair {
-    fn sign(&self, msg: &[u8]) -> error::Result<Vec<u8>> {
+    fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
         Ok(signature.as_ref().to_vec())
@@ -20,16 +23,16 @@ impl keypair::Sign for Keypair {
 }
 
 impl TryFrom<&[u8]> for Keypair {
-    type Error = error::Error;
+    type Error = Error;
 
-    fn try_from(input: &[u8]) -> error::Result<Self> {
+    fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
         let inner = ed25519_dalek::Keypair::from_bytes(&input[1..])?;
         let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
         Ok(Keypair {
-            inner,
             network,
             public_key,
+            inner,
         })
     }
 }
@@ -58,7 +61,7 @@ impl Keypair {
         }
     }
 
-    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> error::Result<Keypair> {
+    pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
         let secret = ed25519_dalek::SecretKey::from_bytes(entropy)?;
         let public = ed25519_dalek::PublicKey::from(&secret);
         let inner = ed25519_dalek::Keypair { secret, public };
@@ -100,21 +103,21 @@ impl signature::Signer<Signature> for Keypair {
 }
 
 impl TryFrom<&[u8]> for Signature {
-    type Error = error::Error;
+    type Error = Error;
 
-    fn try_from(input: &[u8]) -> error::Result<Self> {
+    fn try_from(input: &[u8]) -> Result<Self> {
         signature::Signature::from_bytes(input)
             .map(Signature)
-            .map_err(error::Error::from)
+            .map_err(Error::from)
     }
 }
 
 impl public_key::Verify for PublicKey {
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> std::result::Result<(), error::Error> {
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> std::result::Result<(), Error> {
         use ed25519_dalek::Verifier;
         let signature = Signature::try_from(signature)?;
         Verifier::<ed25519_dalek::Signature>::verify(&self.0, msg, &signature.0)
-            .map_err(error::Error::from)
+            .map_err(Error::from)
     }
 }
 
@@ -125,9 +128,9 @@ impl IntoBytes for PublicKey {
 }
 
 impl TryFrom<&[u8]> for PublicKey {
-    type Error = error::Error;
+    type Error = Error;
 
-    fn try_from(input: &[u8]) -> error::Result<Self> {
+    fn try_from(input: &[u8]) -> Result<Self> {
         Ok(PublicKey(ed25519_dalek::PublicKey::from_bytes(
             &input[1..],
         )?))

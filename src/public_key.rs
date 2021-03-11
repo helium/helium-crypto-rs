@@ -2,7 +2,11 @@
 //! implementations, the pulic key implementation needs to support all of them
 //! since a client will need to be able to parse and use a public key from any
 //! keypair.
-use crate::{ecc_compact, ed25519, error, IntoBytes, KeyTag, KeyType, Network};
+use crate::{
+    ecc_compact, ed25519,
+    error::{Error, Result},
+    IntoBytes, KeyTag, KeyType, Network,
+};
 use std::convert::TryFrom;
 
 ///Verify a given message against a given signature slice. Public keys are
@@ -11,7 +15,7 @@ pub trait Verify {
     /// Verify the given message against the givem signature. An error is
     /// returned if the signature can not be parsed or verified for the
     /// implementor
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result;
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result;
 }
 
 /// The public key byte length is 32 for all key types with an extra type byte
@@ -53,17 +57,17 @@ impl From<PublicKey> for Vec<u8> {
 }
 
 impl TryFrom<Vec<u8>> for PublicKey {
-    type Error = error::Error;
-    fn try_from(v: Vec<u8>) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(v: Vec<u8>) -> Result<Self> {
         Self::try_from(&v[..])
     }
 }
 
 impl TryFrom<&[u8]> for PublicKey {
-    type Error = error::Error;
-    fn try_from(bytes: &[u8]) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() {
-            return Err(error::missing_keytype());
+            return Err(Error::missing_keytype());
         }
         Ok(Self {
             network: Network::try_from(bytes[0])?,
@@ -73,10 +77,10 @@ impl TryFrom<&[u8]> for PublicKey {
 }
 
 impl TryFrom<&[u8]> for PublicKeyRepr {
-    type Error = error::Error;
-    fn try_from(bytes: &[u8]) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(bytes: &[u8]) -> Result<Self> {
         if bytes.is_empty() {
-            return Err(error::missing_keytype());
+            return Err(Error::missing_keytype());
         }
         match KeyType::try_from(bytes[0])? {
             KeyType::EccCompact => Ok(Self::EccCompact(ecc_compact::PublicKey::try_from(bytes)?)),
@@ -114,13 +118,13 @@ impl From<ed25519::PublicKey> for PublicKeyRepr {
 }
 
 impl Verify for PublicKey {
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result {
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         self.inner.verify(msg, signature)
     }
 }
 
 impl Verify for PublicKeyRepr {
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> error::Result {
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         match self {
             Self::Ed25519(key) => key.verify(msg, signature),
             Self::EccCompact(key) => key.verify(msg, signature),
@@ -129,7 +133,7 @@ impl Verify for PublicKeyRepr {
 }
 
 impl std::str::FromStr for PublicKey {
-    type Err = error::Error;
+    type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let data = bs58::decode(s).with_check(Some(0)).into_vec()?;
         Self::try_from(&data[1..])
@@ -154,7 +158,7 @@ impl PublicKey {
     }
 
     /// Construct a public key from its binary form
-    pub fn from_bytes(bytes: impl AsRef<[u8]>) -> error::Result<Self> {
+    pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self> {
         Self::try_from(bytes.as_ref())
     }
 
