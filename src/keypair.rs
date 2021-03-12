@@ -1,11 +1,11 @@
-use crate::{error, public_key, Network};
+use crate::*;
 
 /// Defines a trait for signing messages. Rather than the signature::Signer
 /// trait which deals with exact signature sizes, this trait allows for variable
 /// sized signatures, since the ECDSA signature is DER encoded.
 pub trait Sign {
     /// Sign the given message
-    fn sign(&self, msg: &[u8]) -> error::Result<Vec<u8>>;
+    fn sign(&self, msg: &[u8]) -> Result<Vec<u8>>;
 }
 
 /// Abstract keypair definition

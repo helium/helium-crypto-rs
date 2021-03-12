@@ -2,11 +2,7 @@
 //! implementations, the pulic key implementation needs to support all of them
 //! since a client will need to be able to parse and use a public key from any
 //! keypair.
-use crate::{
-    ecc_compact, ed25519,
-    error::{Error, Result},
-    IntoBytes, KeyTag, KeyType, Network,
-};
+use crate::*;
 use std::convert::TryFrom;
 
 ///Verify a given message against a given signature slice. Public keys are

@@ -26,7 +26,7 @@ pub mod error;
 pub mod public_key;
 
 mod keypair;
-pub use error::Error;
+pub use error::{Error, Result};
 pub use keypair::Sign;
 pub use public_key::{PublicKey, Verify, PUBLIC_KEY_LENGTH};
 use std::{
@@ -75,8 +75,8 @@ impl Default for KeyTag {
 }
 
 impl TryFrom<u8> for KeyTag {
-    type Error = error::Error;
-    fn try_from(v: u8) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(v: u8) -> Result<Self> {
         Ok(KeyTag {
             network: v.try_into()?,
             key_type: v.try_into()?,
@@ -91,8 +91,8 @@ impl From<KeyTag> for u8 {
 }
 
 impl TryFrom<u8> for Network {
-    type Error = error::Error;
-    fn try_from(v: u8) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(v: u8) -> Result<Self> {
         match v & 0xF0 {
             NETTYPE_MAIN => Ok(Self::MainNet),
             NETTYPE_TEST => Ok(Self::TestNet),
@@ -102,7 +102,7 @@ impl TryFrom<u8> for Network {
 }
 
 impl FromStr for Network {
-    type Err = error::Error;
+    type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             NETTYPE_MAIN_STR => Ok(Self::MainNet),
@@ -131,7 +131,7 @@ impl From<Network> for u8 {
 }
 
 impl FromStr for KeyType {
-    type Err = error::Error;
+    type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s {
             KEYTYPE_ED25519_STR => Ok(Self::Ed25519),
@@ -151,8 +151,8 @@ impl fmt::Display for KeyType {
 }
 
 impl TryFrom<u8> for KeyType {
-    type Error = error::Error;
-    fn try_from(v: u8) -> error::Result<Self> {
+    type Error = Error;
+    fn try_from(v: u8) -> Result<Self> {
         match v & 0xF {
             KEYTYPE_ED25519 => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT => Ok(Self::EccCompact),

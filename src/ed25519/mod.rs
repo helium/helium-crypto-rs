@@ -1,7 +1,4 @@
-use crate::{
-    error::{Error, Result},
-    keypair, public_key, IntoBytes, KeyTag, KeyType, Network,
-};
+use crate::*;
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Clone)]
