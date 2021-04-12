@@ -12,7 +12,7 @@ pub struct PublicKey(p256::PublicKey);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Signature(ecdsa::Signature);
 
-pub type Keypair = keypair::Keypair<p256::SecretKey>;
+pub type Keypair = keypair::Keypair<p256::ecdsa::SigningKey>;
 
 pub const KEYPAIR_LENGTH: usize = 33;
 
@@ -28,12 +28,13 @@ impl TryFrom<&[u8]> for Keypair {
     type Error = Error;
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let inner = p256::SecretKey::from_bytes(&input[1..])?;
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public_key()));
+        let secret = p256::SecretKey::from_bytes(&input[1..])?;
+        let public_key =
+            public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
             network,
             public_key,
-            inner,
+            inner: p256::ecdsa::SigningKey::from(secret),
         })
     }
 }
@@ -53,29 +54,29 @@ impl Keypair {
     where
         R: rand_core::CryptoRng + rand_core::RngCore,
     {
-        let mut inner = p256::SecretKey::random(&mut *csprng);
-        let mut public_key = inner.public_key();
+        let mut secret = p256::SecretKey::random(&mut *csprng);
+        let mut public_key = secret.public_key();
         while !bool::from(public_key.as_affine().is_compactable()) {
-            inner = p256::SecretKey::random(&mut *csprng);
-            public_key = inner.public_key();
+            secret = p256::SecretKey::random(&mut *csprng);
+            public_key = secret.public_key();
         }
         Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
-            inner,
+            inner: p256::ecdsa::SigningKey::from(secret),
         }
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let inner = p256::SecretKey::from_bytes(entropy)?;
-        let public_key = inner.public_key();
+        let secret = p256::SecretKey::from_bytes(entropy)?;
+        let public_key = secret.public_key();
         if !bool::from(public_key.as_affine().is_compactable()) {
             return Err(Error::not_compact());
         }
         Ok(Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
-            inner,
+            inner: p256::ecdsa::SigningKey::from(secret),
         })
     }
 
@@ -104,10 +105,7 @@ impl AsRef<[u8]> for Signature {
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        // TODO: Thre has to be a way to avoid cloning for every signature?
-        Ok(Signature(
-            p256::ecdsa::SigningKey::from(self.inner.clone()).sign(msg),
-        ))
+        Ok(Signature(self.inner.sign(msg)))
     }
 }
 
