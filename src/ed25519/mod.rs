@@ -1,4 +1,5 @@
 use crate::*;
+use ed25519_dalek_bip32::ed25519_dalek;
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Clone)]
