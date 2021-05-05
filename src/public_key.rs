@@ -145,6 +145,36 @@ impl std::fmt::Display for PublicKey {
     }
 }
 
+use serde::de::{self, Deserialize, Deserializer, Visitor};
+
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PublicKeyVisitor;
+
+        impl<'de> Visitor<'de> for PublicKeyVisitor {
+            type Value = PublicKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("base58 public key")
+            }
+
+            fn visit_str<E>(self, value: &str) -> std::result::Result<PublicKey, E>
+            where
+                E: de::Error,
+            {
+                let key = PublicKey::from_str(value)
+                    .map_err(|_| de::Error::custom("invalid public key"))?;
+                Ok(key)
+            }
+        }
+
+        deserializer.deserialize_str(PublicKeyVisitor)
+    }
+}
+
 impl PublicKey {
     pub(crate) fn for_network<C: Into<PublicKeyRepr>>(network: Network, public_key: C) -> Self {
         Self {
