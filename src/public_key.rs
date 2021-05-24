@@ -128,6 +128,18 @@ impl Verify for PublicKeyRepr {
     }
 }
 
+impl From<ecc_compact::PublicKey> for PublicKey {
+    fn from(v: ecc_compact::PublicKey) -> Self {
+        Self::for_network(Network::MainNet, v)
+    }
+}
+
+impl From<ed25519::PublicKey> for PublicKey {
+    fn from(v: ed25519::PublicKey) -> Self {
+        Self::for_network(Network::MainNet, v)
+    }
+}
+
 impl std::str::FromStr for PublicKey {
     type Err = Error;
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
