@@ -121,11 +121,24 @@ impl TryFrom<&[u8]> for PublicKey {
     type Error = Error;
 
     fn try_from(input: &[u8]) -> Result<Self> {
-        match p256::AffinePoint::decompact(&FieldBytes::from_slice(&input[1..])).into() {
-            Some(point) => Ok(PublicKey(
-                p256::PublicKey::from_affine(point).map_err(Error::from)?,
-            )),
-            None => Err(Error::not_compact()),
+        if input.len() == PUBLIC_KEY_LENGTH {
+            // Assume this is a compact key we've encoded before, strip of the network/type tag
+            match p256::AffinePoint::decompact(&FieldBytes::from_slice(&input[1..])).into() {
+                Some(point) => Ok(PublicKey(
+                    p256::PublicKey::from_affine(point).map_err(Error::from)?,
+                )),
+                None => Err(Error::not_compact()),
+            }
+        } else {
+            // Otherwise assume it's just raw bytes
+            use p256::elliptic_curve::sec1::FromEncodedPoint;
+            let encoded_point = p256::EncodedPoint::from_bytes(input)?;
+            match p256::AffinePoint::from_encoded_point(&encoded_point) {
+                Some(affine_point) if bool::from(affine_point.is_compactable()) => Ok(PublicKey(
+                    p256::PublicKey::from_affine(affine_point).map_err(Error::from)?,
+                )),
+                _ => Err(Error::not_compact()),
+            }
         }
     }
 }
