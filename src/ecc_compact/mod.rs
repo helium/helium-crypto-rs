@@ -20,7 +20,7 @@ impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
-        Ok(signature.0.to_der().as_bytes().to_vec())
+        Ok(signature.to_vec())
     }
 }
 
@@ -109,6 +109,16 @@ impl signature::Signer<Signature> for Keypair {
     }
 }
 
+impl Signature {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_der().as_bytes().to_vec()
+    }
+}
+
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use signature::Verifier;
@@ -134,9 +144,14 @@ impl TryFrom<&[u8]> for PublicKey {
             use p256::elliptic_curve::sec1::FromEncodedPoint;
             let encoded_point = p256::EncodedPoint::from_bytes(input)?;
             match p256::AffinePoint::from_encoded_point(&encoded_point) {
-                Some(affine_point) if bool::from(affine_point.is_compactable()) => Ok(PublicKey(
-                    p256::PublicKey::from_affine(affine_point).map_err(Error::from)?,
-                )),
+                Some(affine_point) => match affine_point.to_compact_encoded_point() {
+                    Some(encoded_point) => {
+                        let public_key = p256::PublicKey::from_encoded_point(&encoded_point)
+                            .ok_or(Error::not_compact())?;
+                        Ok(PublicKey(public_key))
+                    }
+                    None => Err(Error::not_compact()),
+                },
                 _ => Err(Error::not_compact()),
             }
         }
