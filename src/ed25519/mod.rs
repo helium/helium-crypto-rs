@@ -15,7 +15,7 @@ impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
-        Ok(signature.as_ref().to_vec())
+        Ok(signature.to_vec())
     }
 }
 
@@ -96,6 +96,16 @@ impl AsRef<[u8]> for Signature {
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         Ok(Signature(self.inner.sign(msg)))
+    }
+}
+
+impl Signature {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.as_ref().to_vec()
     }
 }
 
