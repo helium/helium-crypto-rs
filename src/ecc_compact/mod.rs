@@ -16,6 +16,20 @@ pub type Keypair = keypair::Keypair<p256::ecdsa::SigningKey>;
 
 pub const KEYPAIR_LENGTH: usize = 33;
 
+pub trait IsCompactable {
+    fn is_compactable(&self) -> bool;
+}
+
+impl IsCompactable for p256::PublicKey {
+    fn is_compactable(&self) -> bool {
+        self.as_affine()
+            .to_compact_encoded_point()
+            .map_or(false, |compact_point| {
+                Ok(*self) == compact_point.decode::<Self>()
+            })
+    }
+}
+
 impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
@@ -56,7 +70,7 @@ impl Keypair {
     {
         let mut secret = p256::SecretKey::random(&mut *csprng);
         let mut public_key = secret.public_key();
-        while !bool::from(public_key.as_affine().is_compactable()) {
+        while !public_key.is_compactable() {
             secret = p256::SecretKey::random(&mut *csprng);
             public_key = secret.public_key();
         }
@@ -70,7 +84,7 @@ impl Keypair {
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
         let secret = p256::SecretKey::from_bytes(entropy)?;
         let public_key = secret.public_key();
-        if !bool::from(public_key.as_affine().is_compactable()) {
+        if !public_key.is_compactable() {
             return Err(Error::not_compact());
         }
         Ok(Keypair {

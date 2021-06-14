@@ -11,15 +11,12 @@ bs58 = {version = "0.4", features=["check"]}
 signature = "*"
 rand_core = { version = "0.6", features = ["getrandom"] }
 ed25519-dalek = { git = "https://github.com/helium/ed25519-dalek", branch = "madninja/bump_rand" }
-p256 = { git = "https://github.com/helium/elliptic-curves", branch="rg/compact", default-features=false, features=["arithmetic", "ecdsa", "sha256", "zeroize"] }
+p256 = { git = "https://github.com/helium/elliptic-curves", branch="madninja/compact_point_impl", default-features=false, features=["arithmetic", "ecdsa", "sha256", "zeroize"] }
 serde = "1"
 
 [dev-dependencies]
 hex-literal = "0"
 rand = "0.8"
 sha2 = "0"
-
-[patch.crates-io]
-elliptic-curve = { git = "https://github.com/helium/traits.git", branch = "rg/compact" }
 
 
