@@ -7,7 +7,11 @@ pub struct PublicKey(ed25519_dalek::PublicKey);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Signature(ed25519_dalek::Signature);
 
-pub type Keypair = keypair::Keypair<ed25519_dalek::Keypair>;
+pub struct Keypair {
+    pub network: Network,
+    pub public_key: public_key::PublicKey,
+    secret: ed25519_dalek::Keypair,
+}
 
 pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
 
@@ -24,23 +28,20 @@ impl TryFrom<&[u8]> for Keypair {
 
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let inner = ed25519_dalek::Keypair::from_bytes(&input[1..])?;
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
+        let secret = ed25519_dalek::Keypair::from_bytes(&input[1..])?;
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
         Ok(Keypair {
             network,
             public_key,
-            inner,
+            secret,
         })
     }
 }
 
 impl IntoBytes for Keypair {
     fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(KeyTag {
-            network: self.network,
-            key_type: KeyType::Ed25519,
-        });
-        output[1..].copy_from_slice(&self.inner.to_bytes());
+        output[0] = u8::from(self.key_tag());
+        output[1..].copy_from_slice(&self.secret.to_bytes());
     }
 }
 
@@ -49,24 +50,24 @@ impl Keypair {
     where
         R: rand_core::CryptoRng + rand_core::RngCore,
     {
-        let inner = ed25519_dalek::Keypair::generate(csprng);
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
+        let secret = ed25519_dalek::Keypair::generate(csprng);
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
         Keypair {
             network,
             public_key,
-            inner,
+            secret,
         }
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
         let secret = ed25519_dalek::SecretKey::from_bytes(entropy)?;
         let public = ed25519_dalek::PublicKey::from(&secret);
-        let inner = ed25519_dalek::Keypair { secret, public };
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(inner.public));
+        let secret = ed25519_dalek::Keypair { secret, public };
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
         Ok(Keypair {
             network,
             public_key,
-            inner,
+            secret,
         })
     }
 
@@ -74,6 +75,13 @@ impl Keypair {
         let mut result = [0u8; KEYPAIR_LENGTH];
         self.bytes_into(&mut result);
         result
+    }
+
+    pub fn key_tag(&self) -> KeyTag {
+        KeyTag {
+            network: self.network,
+            key_type: KeyType::Ed25519,
+        }
     }
 }
 
@@ -93,9 +101,24 @@ impl AsRef<[u8]> for Signature {
     }
 }
 
+impl std::fmt::Debug for Keypair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        f.debug_struct("Keypair")
+            .field("tag", &self.key_tag())
+            .field("public", &self.public_key)
+            .finish()
+    }
+}
+
+impl PartialEq for Keypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.network == other.network && self.public_key == other.public_key
+    }
+}
+
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        Ok(Signature(self.inner.sign(msg)))
+        Ok(Signature(self.secret.sign(msg)))
     }
 }
 
