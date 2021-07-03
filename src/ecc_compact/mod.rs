@@ -12,7 +12,11 @@ pub struct PublicKey(p256::PublicKey);
 #[derive(Debug, PartialEq, Clone)]
 pub struct Signature(ecdsa::Signature);
 
-pub type Keypair = keypair::Keypair<p256::ecdsa::SigningKey>;
+pub struct Keypair {
+    pub network: Network,
+    pub public_key: public_key::PublicKey,
+    secret: p256::ecdsa::SigningKey,
+}
 
 pub const KEYPAIR_LENGTH: usize = 33;
 
@@ -22,11 +26,22 @@ pub trait IsCompactable {
 
 impl IsCompactable for p256::PublicKey {
     fn is_compactable(&self) -> bool {
-        self.as_affine()
-            .to_compact_encoded_point()
-            .map_or(false, |compact_point| {
-                Ok(*self) == compact_point.decode::<Self>()
-            })
+        self.as_affine().to_compact_encoded_point().is_some()
+    }
+}
+
+impl PartialEq for Keypair {
+    fn eq(&self, other: &Self) -> bool {
+        self.network == other.network && self.public_key == other.public_key
+    }
+}
+
+impl std::fmt::Debug for Keypair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        f.debug_struct("Keypair")
+            .field("tag", &self.key_tag())
+            .field("public", &self.public_key)
+            .finish()
     }
 }
 
@@ -48,18 +63,15 @@ impl TryFrom<&[u8]> for Keypair {
         Ok(Keypair {
             network,
             public_key,
-            inner: p256::ecdsa::SigningKey::from(secret),
+            secret: p256::ecdsa::SigningKey::from(secret),
         })
     }
 }
 
 impl IntoBytes for Keypair {
     fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(KeyTag {
-            network: self.network,
-            key_type: KeyType::EccCompact,
-        });
-        output[1..].copy_from_slice(&self.inner.to_bytes());
+        output[0] = u8::from(self.key_tag());
+        output[1..].copy_from_slice(&self.secret.to_bytes());
     }
 }
 
@@ -77,7 +89,7 @@ impl Keypair {
         Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
-            inner: p256::ecdsa::SigningKey::from(secret),
+            secret: p256::ecdsa::SigningKey::from(secret),
         }
     }
 
@@ -90,7 +102,7 @@ impl Keypair {
         Ok(Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, PublicKey(public_key)),
-            inner: p256::ecdsa::SigningKey::from(secret),
+            secret: p256::ecdsa::SigningKey::from(secret),
         })
     }
 
@@ -98,6 +110,13 @@ impl Keypair {
         let mut result = [0u8; KEYPAIR_LENGTH];
         self.bytes_into(&mut result);
         result
+    }
+
+    pub fn key_tag(&self) -> KeyTag {
+        KeyTag {
+            network: self.network,
+            key_type: KeyType::EccCompact,
+        }
     }
 }
 
@@ -119,7 +138,7 @@ impl AsRef<[u8]> for Signature {
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        Ok(Signature(self.inner.sign(msg)))
+        Ok(Signature(self.secret.sign(msg)))
     }
 }
 
@@ -147,7 +166,7 @@ impl TryFrom<&[u8]> for PublicKey {
     fn try_from(input: &[u8]) -> Result<Self> {
         if input.len() == PUBLIC_KEY_LENGTH {
             // Assume this is a compact key we've encoded before, strip of the network/type tag
-            match p256::AffinePoint::decompact(&FieldBytes::from_slice(&input[1..])).into() {
+            match p256::AffinePoint::decompact(FieldBytes::from_slice(&input[1..])).into() {
                 Some(point) => Ok(PublicKey(
                     p256::PublicKey::from_affine(point).map_err(Error::from)?,
                 )),

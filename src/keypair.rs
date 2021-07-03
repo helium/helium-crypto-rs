@@ -8,26 +8,99 @@ pub trait Sign {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>>;
 }
 
-/// Abstract keypair definition
-pub struct Keypair<C> {
-    /// The network this keypair is valid for
-    pub network: Network,
-    /// The public key for this keypair
-    pub public_key: public_key::PublicKey,
-    pub(crate) inner: C,
+pub(crate) trait KeypairLength {
+    const KEYPAIR_LENGTH: usize;
 }
 
-impl<C> PartialEq for Keypair<C> {
-    fn eq(&self, other: &Self) -> bool {
-        self.network == other.network && self.public_key == other.public_key
+#[derive(PartialEq, Debug)]
+pub enum Keypair {
+    Ed25519(ed25519::Keypair),
+    EccCompact(ecc_compact::Keypair),
+}
+
+impl Sign for Keypair {
+    fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
+        match self {
+            Self::Ed25519(keypair) => keypair.sign(msg),
+            Self::EccCompact(keypair) => keypair.sign(msg),
+        }
     }
 }
 
-impl<C> std::fmt::Debug for Keypair<C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        f.debug_struct("Keypair")
-            .field("network", &self.network)
-            .field("public", &self.public_key)
-            .finish()
+impl Keypair {
+    pub fn generate<R>(key_tag: KeyTag, csprng: &mut R) -> Keypair
+    where
+        R: rand_core::CryptoRng + rand_core::RngCore,
+    {
+        match key_tag.key_type {
+            KeyType::EccCompact => {
+                Self::EccCompact(ecc_compact::Keypair::generate(key_tag.network, csprng))
+            }
+            KeyType::Ed25519 => Self::Ed25519(ed25519::Keypair::generate(key_tag.network, csprng)),
+        }
+    }
+
+    pub fn generate_from_entropy(key_tag: KeyTag, entropy: &[u8]) -> Result<Keypair> {
+        match key_tag.key_type {
+            KeyType::EccCompact => Ok(Self::EccCompact(
+                ecc_compact::Keypair::generate_from_entropy(key_tag.network, entropy)?,
+            )),
+            KeyType::Ed25519 => Ok(Self::Ed25519(ed25519::Keypair::generate_from_entropy(
+                key_tag.network,
+                entropy,
+            )?)),
+        }
+    }
+
+    pub fn key_tag(&self) -> KeyTag {
+        match self {
+            Self::Ed25519(keypair) => keypair.key_tag(),
+            Self::EccCompact(keypair) => keypair.key_tag(),
+        }
+    }
+
+    pub fn public_key(&self) -> &PublicKey {
+        match self {
+            Self::Ed25519(keypair) => &keypair.public_key,
+            Self::EccCompact(keypair) => &keypair.public_key,
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Ed25519(keypair) => {
+                let mut bytes = [0u8; ed25519::KEYPAIR_LENGTH];
+                keypair.bytes_into(&mut bytes);
+                bytes.to_vec()
+            }
+            Self::EccCompact(keypair) => {
+                let mut bytes = [0u8; ecc_compact::KEYPAIR_LENGTH];
+                keypair.bytes_into(&mut bytes);
+                bytes.to_vec()
+            }
+        }
+    }
+}
+
+impl From<ed25519::Keypair> for Keypair {
+    fn from(keypair: ed25519::Keypair) -> Self {
+        Self::Ed25519(keypair)
+    }
+}
+
+impl From<ecc_compact::Keypair> for Keypair {
+    fn from(keypair: ecc_compact::Keypair) -> Self {
+        Self::EccCompact(keypair)
+    }
+}
+
+impl TryFrom<&[u8]> for Keypair {
+    type Error = Error;
+
+    fn try_from(input: &[u8]) -> Result<Self> {
+        match KeyType::try_from(input[0])? {
+            KeyType::Ed25519 => Ok(ed25519::Keypair::try_from(input)?.into()),
+            KeyType::EccCompact => Ok(ecc_compact::Keypair::try_from(input)?.into()),
+        }
     }
 }

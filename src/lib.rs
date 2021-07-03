@@ -22,12 +22,13 @@
 //! [HELIUM]: https://helium.com
 pub mod ecc_compact;
 pub mod ed25519;
+
 pub mod error;
 pub mod public_key;
 
 mod keypair;
 pub use error::{Error, Result};
-pub use keypair::Sign;
+pub use keypair::{Keypair, Sign};
 pub use public_key::{PublicKey, Verify, PUBLIC_KEY_LENGTH};
 use std::{
     convert::{From, TryFrom, TryInto},
