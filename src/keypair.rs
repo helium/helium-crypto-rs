@@ -104,3 +104,68 @@ impl TryFrom<&[u8]> for Keypair {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::rngs::OsRng;
+
+    fn bytes_roundtrip(key_tag: KeyTag) {
+        let keypair = Keypair::generate(key_tag, &mut OsRng);
+        let bytes = keypair.to_bytes();
+        assert_eq!(
+            keypair,
+            super::Keypair::try_from(&bytes[..]).expect("keypair")
+        );
+        assert_eq!(keypair.key_tag(), key_tag);
+    }
+
+    fn sign_test(key_tag: KeyTag) {
+        let keypair = Keypair::generate(key_tag, &mut OsRng);
+        let signature = keypair.sign(b"hello world").expect("signature");
+        assert!(keypair
+            .public_key()
+            .verify(b"hello world", &signature)
+            .is_ok())
+    }
+
+    #[test]
+    fn bytes_roundtrip_ed25519() {
+        bytes_roundtrip(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::Ed25519,
+        });
+        bytes_roundtrip(KeyTag {
+            network: Network::TestNet,
+            key_type: KeyType::Ed25519,
+        })
+    }
+
+    #[test]
+    fn bytes_roundtrip_ecc_compact() {
+        bytes_roundtrip(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::EccCompact,
+        });
+        bytes_roundtrip(KeyTag {
+            network: Network::TestNet,
+            key_type: KeyType::EccCompact,
+        });
+    }
+
+    #[test]
+    fn sign_ed25519() {
+        sign_test(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::Ed25519,
+        });
+    }
+
+    #[test]
+    fn sign_ecc_compact() {
+        sign_test(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::EccCompact,
+        });
+    }
+}
