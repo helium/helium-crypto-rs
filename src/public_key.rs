@@ -87,7 +87,7 @@ impl TryFrom<&[u8]> for PublicKeyRepr {
 
 impl IntoBytes for PublicKey {
     fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(self.tag());
+        output[0] = u8::from(self.key_tag());
         self.inner.bytes_into(&mut output[1..]);
     }
 }
@@ -214,7 +214,7 @@ impl PublicKey {
     }
 
     /// Get the tag for this key
-    pub fn tag(&self) -> KeyTag {
+    pub fn key_tag(&self) -> KeyTag {
         let key_type = match self.inner {
             PublicKeyRepr::EccCompact(..) => KeyType::EccCompact,
             PublicKeyRepr::Ed25519(..) => KeyType::Ed25519,
@@ -223,5 +223,25 @@ impl PublicKey {
             network: self.network,
             key_type,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_key_roundtrip() {
+        // This is a valid b58 encoded compact key
+        const B58: &str = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv";
+        let public_key: PublicKey = B58.parse().expect("public key");
+        assert_eq!(
+            public_key.key_tag(),
+            KeyTag {
+                network: Network::MainNet,
+                key_type: KeyType::EccCompact
+            }
+        );
+        assert_eq!(public_key.to_string(), B58.to_string())
     }
 }
