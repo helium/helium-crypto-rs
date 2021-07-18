@@ -46,6 +46,12 @@ pub enum Network {
 
 impl Copy for Network {}
 
+impl Default for Network {
+    fn default() -> Self {
+        Self::MainNet
+    }
+}
+
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
 #[derive(Debug, PartialEq, Clone)]
@@ -56,24 +62,21 @@ pub enum KeyType {
 
 impl Copy for KeyType {}
 
+impl Default for KeyType {
+    fn default() -> Self {
+        Self::Ed25519
+    }
+}
+
 /// A keytag is the byte prefix tag for both public and private keys in their
 /// binary form. A tag encodes both the network and the type of key.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub struct KeyTag {
     pub network: Network,
     pub key_type: KeyType,
 }
 
 impl Copy for KeyTag {}
-
-impl Default for KeyTag {
-    fn default() -> Self {
-        Self {
-            network: Network::MainNet,
-            key_type: KeyType::Ed25519,
-        }
-    }
-}
 
 impl TryFrom<u8> for KeyTag {
     type Error = Error;
