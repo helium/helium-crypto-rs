@@ -20,8 +20,12 @@
 //! [JIVSOV]: https://tools.ietf.org/html/draft-jivsov-ecc-compact-05
 //!
 //! [HELIUM]: https://helium.com
+
 pub mod ecc_compact;
 pub mod ed25519;
+
+#[cfg(feature = "ecc608")]
+pub mod ecc608;
 
 pub mod error;
 pub mod public_key;

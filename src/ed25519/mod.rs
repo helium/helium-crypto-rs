@@ -85,8 +85,8 @@ impl Keypair {
         }
     }
 
-    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
-        Ok(self.secret.secret.as_bytes().to_vec())
+    pub fn secret_to_vec(&self) -> Vec<u8> {
+        self.secret.secret.as_bytes().to_vec()
     }
 }
 

@@ -7,10 +7,10 @@ use p256::{
 use std::convert::TryFrom;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct PublicKey(p256::PublicKey);
+pub struct PublicKey(pub(crate) p256::PublicKey);
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Signature(ecdsa::Signature);
+pub struct Signature(pub(crate) ecdsa::Signature);
 
 pub struct Keypair {
     pub network: Network,
@@ -120,8 +120,8 @@ impl Keypair {
         }
     }
 
-    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
-        Ok(self.secret.to_bytes().as_slice().to_vec())
+    pub fn secret_to_vec(&self) -> Vec<u8> {
+        self.secret.to_bytes().as_slice().to_vec()
     }
 }
 
