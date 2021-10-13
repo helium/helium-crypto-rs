@@ -119,6 +119,10 @@ impl Keypair {
             key_type: KeyType::EccCompact,
         }
     }
+
+    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
+        Ok(self.secret.to_bytes().as_slice().to_vec())
+    }
 }
 
 impl signature::Signature for Signature {

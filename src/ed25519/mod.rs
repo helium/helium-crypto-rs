@@ -84,6 +84,10 @@ impl Keypair {
             key_type: KeyType::Ed25519,
         }
     }
+
+    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
+        Ok(self.secret.secret.as_bytes().to_vec())
+    }
 }
 
 impl signature::Signature for Signature {

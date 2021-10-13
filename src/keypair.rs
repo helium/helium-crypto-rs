@@ -8,10 +8,6 @@ pub trait Sign {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>>;
 }
 
-pub(crate) trait KeypairLength {
-    const KEYPAIR_LENGTH: usize;
-}
-
 #[derive(PartialEq, Debug)]
 pub enum Keypair {
     Ed25519(ed25519::Keypair),
@@ -70,6 +66,13 @@ impl Keypair {
         match self {
             Self::Ed25519(keypair) => keypair.to_vec(),
             Self::EccCompact(keypair) => keypair.to_vec(),
+        }
+    }
+
+    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
+        match self {
+            Self::Ed25519(keypair) => keypair.secret_to_vec(),
+            Self::EccCompact(keypair) => keypair.secret_to_vec(),
         }
     }
 }
