@@ -29,7 +29,7 @@ pub mod public_key;
 mod keypair;
 pub use error::{Error, Result};
 pub use keypair::{Keypair, Sign};
-pub use public_key::{PublicKey, Verify, PUBLIC_KEY_LENGTH};
+pub use public_key::{PublicKey, PublicKeySize, Verify};
 use std::{
     convert::{From, TryFrom, TryInto},
     fmt,

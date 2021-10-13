@@ -8,10 +8,6 @@ pub trait Sign {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>>;
 }
 
-pub(crate) trait KeypairLength {
-    const KEYPAIR_LENGTH: usize;
-}
-
 #[derive(PartialEq, Debug)]
 pub enum Keypair {
     Ed25519(ed25519::Keypair),
@@ -66,18 +62,17 @@ impl Keypair {
         }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    pub fn to_vec(&self) -> Vec<u8> {
         match self {
-            Self::Ed25519(keypair) => {
-                let mut bytes = [0u8; ed25519::KEYPAIR_LENGTH];
-                keypair.bytes_into(&mut bytes);
-                bytes.to_vec()
-            }
-            Self::EccCompact(keypair) => {
-                let mut bytes = [0u8; ecc_compact::KEYPAIR_LENGTH];
-                keypair.bytes_into(&mut bytes);
-                bytes.to_vec()
-            }
+            Self::Ed25519(keypair) => keypair.to_vec(),
+            Self::EccCompact(keypair) => keypair.to_vec(),
+        }
+    }
+
+    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
+        match self {
+            Self::Ed25519(keypair) => keypair.secret_to_vec(),
+            Self::EccCompact(keypair) => keypair.secret_to_vec(),
         }
     }
 }
@@ -112,7 +107,7 @@ mod tests {
 
     fn bytes_roundtrip(key_tag: KeyTag) {
         let keypair = Keypair::generate(key_tag, &mut OsRng);
-        let bytes = keypair.to_bytes();
+        let bytes = keypair.to_vec();
         assert_eq!(
             keypair,
             super::Keypair::try_from(&bytes[..]).expect("keypair")

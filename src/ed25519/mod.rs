@@ -14,6 +14,7 @@ pub struct Keypair {
 }
 
 pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
+pub const PUBLIC_KEY_LENGTH: usize = ed25519_dalek::PUBLIC_KEY_LENGTH + 1;
 
 impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
@@ -71,8 +72,8 @@ impl Keypair {
         })
     }
 
-    pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
-        let mut result = [0u8; KEYPAIR_LENGTH];
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut result = vec![0u8; KEYPAIR_LENGTH];
         self.bytes_into(&mut result);
         result
     }
@@ -82,6 +83,10 @@ impl Keypair {
             network: self.network,
             key_type: KeyType::Ed25519,
         }
+    }
+
+    pub fn secret_to_vec(&self) -> Result<Vec<u8>> {
+        Ok(self.secret.secret.as_bytes().to_vec())
     }
 }
 
@@ -139,6 +144,12 @@ impl TryFrom<&[u8]> for Signature {
         signature::Signature::from_bytes(input)
             .map(Signature)
             .map_err(Error::from)
+    }
+}
+
+impl PublicKeySize for PublicKey {
+    fn public_key_size(&self) -> usize {
+        PUBLIC_KEY_LENGTH
     }
 }
 
@@ -208,7 +219,7 @@ mod tests {
     fn bytes_roundtrip() {
         use rand::rngs::OsRng;
         let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
-        let bytes = keypair.to_bytes();
+        let bytes = keypair.to_vec();
         assert_eq!(
             keypair,
             super::Keypair::try_from(&bytes[..]).expect("keypair")
@@ -216,7 +227,7 @@ mod tests {
         assert_eq!(keypair.public_key.network, Network::MainNet);
         // Testnet
         let keypair = Keypair::generate(Network::TestNet, &mut OsRng);
-        let bytes = keypair.to_bytes();
+        let bytes = keypair.to_vec();
         assert_eq!(
             keypair,
             super::Keypair::try_from(&bytes[..]).expect("keypair")

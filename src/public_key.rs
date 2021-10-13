@@ -14,9 +14,11 @@ pub trait Verify {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result;
 }
 
-/// The public key byte length is 32 for all key types with an extra type byte
-/// prefixed.
-pub const PUBLIC_KEY_LENGTH: usize = 33;
+/// The public key byte length is the underlying public key length all key types
+/// with an extra type byte prefixed.
+pub trait PublicKeySize {
+    fn public_key_size(&self) -> usize;
+}
 
 /// A public key representing any of the supported public key types on a given
 /// network.
@@ -38,11 +40,24 @@ pub(crate) enum PublicKeyRepr {
 
 impl Eq for PublicKey {}
 
+impl PublicKeySize for PublicKeyRepr {
+    fn public_key_size(&self) -> usize {
+        match self {
+            Self::EccCompact(key) => key.public_key_size(),
+            Self::Ed25519(key) => key.public_key_size(),
+        }
+    }
+}
+
+impl PublicKeySize for PublicKey {
+    fn public_key_size(&self) -> usize {
+        self.inner.public_key_size()
+    }
+}
+
 impl From<&PublicKey> for Vec<u8> {
     fn from(v: &PublicKey) -> Self {
-        let mut result = vec![0u8; PUBLIC_KEY_LENGTH];
-        v.bytes_into(&mut result);
-        result
+        v.to_vec()
     }
 }
 
@@ -150,9 +165,9 @@ impl std::str::FromStr for PublicKey {
 
 impl std::fmt::Display for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        let mut data = [0u8; PUBLIC_KEY_LENGTH + 1];
+        let mut data = vec![0u8; self.public_key_size() + 1];
         self.bytes_into(&mut data[1..]);
-        let encoded = bs58::encode(data.as_ref()).with_check().into_string();
+        let encoded = bs58::encode(&data).with_check().into_string();
         f.write_str(&encoded)
     }
 }
@@ -200,17 +215,11 @@ impl PublicKey {
         Self::try_from(bytes.as_ref())
     }
 
-    /// Convert a public key to it's binary form
-    pub fn to_bytes(&self) -> [u8; PUBLIC_KEY_LENGTH] {
-        let mut result = [0u8; PUBLIC_KEY_LENGTH];
+    /// Convert a public to a Vec of it's binary form.
+    pub fn to_vec(&self) -> Vec<u8> {
+        let mut result = vec![0u8; self.public_key_size()];
         self.bytes_into(&mut result);
         result
-    }
-
-    /// Convert a public to a Vec of it's binary form. A convenience function
-    /// equivalent to calling `public_key.to_bytes().to_vec()`
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.to_bytes().to_vec()
     }
 
     /// Get the tag for this key
