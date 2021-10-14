@@ -9,6 +9,11 @@ pub enum Error {
     EccCompact(p256::elliptic_curve::Error),
     #[error("signature error")]
     Signature(#[from] signature::Error),
+
+    #[cfg(feature = "ecc608")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ecc608")))]
+    #[error("ecc608 error")]
+    Ecc608(#[from] ecc608_linux::Error),
 }
 
 #[derive(Error, Debug)]
