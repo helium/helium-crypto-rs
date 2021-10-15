@@ -31,6 +31,9 @@ pub enum Error {
     #[cfg_attr(docsrs, doc(cfg(feature = "tpm")))]
     #[error("TPM error")]
     TPM(#[from] crate::tpm::Error),
+
+    #[error("secp256k1 error")]
+    Secp256k1(#[from] crate::secp256k1::Error),
 }
 
 #[derive(Error, Debug)]

@@ -48,6 +48,7 @@ pub(crate) enum PublicKeyRepr {
     Ed25519(ed25519::PublicKey),
     #[cfg(feature = "multisig")]
     MultiSig(multisig::PublicKey),
+    Secp256k1(secp256k1::PublicKey),
 }
 
 impl Eq for PublicKeyRepr {}
@@ -107,6 +108,7 @@ impl TryFrom<&[u8]> for PublicKeyRepr {
             KeyType::Ed25519 => Ok(Self::Ed25519(ed25519::PublicKey::try_from(bytes)?)),
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => Ok(Self::MultiSig(multisig::PublicKey::try_from(bytes)?)),
+            KeyType::Secp256k1 => Ok(Self::Secp256k1(secp256k1::PublicKey::try_from(bytes)?)),
         }
     }
 }
@@ -128,6 +130,7 @@ impl ReadFrom for PublicKey {
             KeyType::Ed25519 => PublicKeyRepr::Ed25519(ed25519::PublicKey::read_from(input)?),
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => PublicKeyRepr::MultiSig(multisig::PublicKey::read_from(input)?),
+            KeyType::Secp256k1 => PublicKeyRepr::Secp256k1(secp256k1::PublicKey::read_from(input)?),
         };
         Ok(Self {
             network: key_tag.network,
@@ -143,6 +146,7 @@ impl WriteTo for PublicKeyRepr {
             Self::Ed25519(key) => key.write_to(output),
             #[cfg(feature = "multisig")]
             Self::MultiSig(key) => key.write_to(output),
+            Self::Secp256k1(key) => key.write_to(output),
         }
     }
 }
@@ -203,6 +207,12 @@ mod sqlx_postgres {
     }
 }
 
+impl From<secp256k1::PublicKey> for PublicKeyRepr {
+    fn from(v: secp256k1::PublicKey) -> Self {
+        Self::Secp256k1(v)
+    }
+}
+
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         self.inner.verify(msg, signature)
@@ -212,6 +222,7 @@ impl Verify for PublicKey {
 impl Verify for PublicKeyRepr {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         match self {
+            Self::Secp256k1(key) => key.verify(msg, signature),
             Self::Ed25519(key) => key.verify(msg, signature),
             Self::EccCompact(key) => key.verify(msg, signature),
             #[cfg(feature = "multisig")]
@@ -249,6 +260,12 @@ impl<'a> TryFrom<&'a PublicKey> for &'a ed25519::PublicKey {
             PublicKeyRepr::Ed25519(public_key) => Ok(public_key),
             _ => Err(Error::invalid_curve()),
         }
+    }
+}
+
+impl From<secp256k1::PublicKey> for PublicKey {
+    fn from(v: secp256k1::PublicKey) -> Self {
+        Self::for_network(Network::MainNet, v)
     }
 }
 
@@ -343,6 +360,7 @@ impl PublicKey {
             PublicKeyRepr::Ed25519(..) => KeyType::Ed25519,
             #[cfg(feature = "multisig")]
             PublicKeyRepr::MultiSig(..) => KeyType::MultiSig,
+            PublicKeyRepr::Secp256k1(..) => KeyType::Secp256k1,
         }
     }
 
@@ -360,6 +378,7 @@ impl PublicKey {
             PublicKeyRepr::Ed25519(..) => ed25519::PublicKey::PUBLIC_KEY_SIZE,
             #[cfg(feature = "multisig")]
             PublicKeyRepr::MultiSig(..) => multisig::PublicKey::PUBLIC_KEY_SIZE,
+            PublicKeyRepr::Secp256k1(..) => secp256k1::PUBLIC_KEY_LENGTH,
         }
     }
 }
@@ -470,5 +489,20 @@ mod tests {
         let serialized = serde_json::to_string(&orig_pub_key).unwrap();
         let deserialized = serde_json::from_str(&serialized).unwrap();
         assert_eq!(orig_pub_key, deserialized);
+    }
+
+    #[test]
+    fn k256p1_roundtrip() {
+        // This is a valid b58 encoded secp256k1 key
+        const B58: &str = "1SpLY6fic4fGthLGjeAUdLVNVYk1gJGrWTGhsukm2dnELaSEQmhL";
+        let public_key: PublicKey = B58.parse().expect("public key");
+        assert_eq!(
+            public_key.key_tag(),
+            KeyTag {
+                network: Network::MainNet,
+                key_type: KeyType::Secp256k1,
+            }
+        );
+        assert_eq!(public_key.to_string(), B58.to_string())
     }
 }
