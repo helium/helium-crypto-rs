@@ -1,8 +1,8 @@
 use crate::{
     ecc_compact::{self, Signature},
-    keypair, public_key, KeyTag, KeyType, Network, Result,
+    keypair, public_key, KeyTag, KeyType as CrateKeyType, Network, Result,
 };
-use ecc608_linux::Ecc;
+pub use ecc608_linux::{Ecc, KeyConfig, KeyType, SlotConfig, Zone, MAX_SLOT};
 use p256::ecdsa;
 use std::{
     convert::TryFrom,
@@ -63,10 +63,17 @@ impl Keypair {
     /// NOTE: The init function _must have been called once, before using this
     /// function.
     pub fn from_slot(network: Network, slot: u8) -> Result<Keypair> {
-        let mut ecc = ecc().lock().unwrap();
-        let bytes = ecc.genkey(ecc608_linux::KeyType::Public, slot)?;
-        // drop lock early
-        drop(ecc);
+        with_ecc(|ecc| Self::from_ecc_slot(ecc, network, slot))
+    }
+
+    /// Constructs a keypair from the given slot using the given ECC. The
+    /// returned keypair will use the private key in the given slot to sign
+    /// data.
+    ///
+    /// The normal use case is to call this function within the `with_ecc`
+    /// callback to use a locked global instance of the ECC.
+    pub fn from_ecc_slot(ecc: &mut Ecc, network: Network, slot: u8) -> Result<Keypair> {
+        let bytes = ecc.genkey(KeyType::Public, slot)?;
         // Start with the "decompressed" sec1 tag since the ecc does not include it.
         let mut key_bytes = vec![4u8];
         // Add the keybytes from the slot.
@@ -82,17 +89,24 @@ impl Keypair {
     pub fn key_tag(&self) -> KeyTag {
         KeyTag {
             network: self.network,
-            key_type: KeyType::EccCompact,
+            key_type: CrateKeyType::EccCompact,
         }
     }
 }
 
+/// Locks the global ECC and runs the given function, passing in the ECC. The
+/// lock on the ecc is dropped as soon as this function returns.
+pub fn with_ecc<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut Ecc) -> R,
+{
+    let mut ecc = ecc().lock().unwrap();
+    f(&mut ecc)
+}
+
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        let mut ecc = ecc().lock().unwrap();
-        let sign_result = ecc.sign(self.slot, msg);
-        // drop lock early
-        drop(ecc);
+        let sign_result = with_ecc(|ecc| ecc.sign(self.slot, msg));
         match sign_result {
             Ok(bytes) => {
                 let signature = ecdsa::Signature::try_from(&bytes[..])?;
