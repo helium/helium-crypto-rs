@@ -1,11 +1,11 @@
 use crate::{
     ecc_compact::{self, Signature},
-    keypair, public_key, KeyTag, KeyType as CrateKeyType, Network, Result,
+    keypair, public_key, Error, KeyTag, KeyType as CrateKeyType, Network, Result,
 };
 pub use ecc608_linux::{Ecc, KeyConfig, KeyType, SlotConfig, Zone, MAX_SLOT};
-use p256::ecdsa;
+use p256::{ecdsa, elliptic_curve};
 use std::{
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
     sync::{Mutex, Once},
 };
 
@@ -91,6 +91,20 @@ impl Keypair {
             network: self.network,
             key_type: CrateKeyType::EccCompact,
         }
+    }
+
+    pub fn ecdh<'a, C>(&self, public_key: C) -> Result<ecc_compact::SharedSecret>
+    where
+        C: TryInto<&'a ecc_compact::PublicKey, Error = Error>,
+    {
+        use elliptic_curve::sec1::ToEncodedPoint;
+        let key = public_key.try_into()?;
+        let point = key.0.to_encoded_point(false);
+        let shared_secret_bytes =
+            with_ecc(|ecc| ecc.ecdh(self.slot, point.x().unwrap(), point.y().unwrap()))?;
+        Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(
+            *p256::FieldBytes::from_slice(&shared_secret_bytes),
+        )))
     }
 }
 

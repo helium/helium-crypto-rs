@@ -1,13 +1,15 @@
 use crate::*;
 use p256::{
     ecdsa,
-    elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
+    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
     FieldBytes,
 };
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::Deref};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PublicKey(pub(crate) p256::PublicKey);
+
+pub struct SharedSecret(pub(crate) p256::ecdh::SharedSecret);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Signature(pub(crate) ecdsa::Signature);
@@ -123,6 +125,17 @@ impl Keypair {
     pub fn secret_to_vec(&self) -> Vec<u8> {
         self.secret.to_bytes().as_slice().to_vec()
     }
+
+    pub fn ecdh<'a, C>(&self, public_key: C) -> Result<SharedSecret>
+    where
+        C: TryInto<&'a PublicKey, Error = Error>,
+    {
+        let public_key = public_key.try_into()?;
+        let secret_key = p256::SecretKey::from_bytes(self.secret.to_bytes())?;
+        let shared_secret =
+            ecdh::diffie_hellman(secret_key.to_secret_scalar(), public_key.0.as_affine());
+        Ok(SharedSecret(shared_secret))
+    }
 }
 
 impl signature::Signature for Signature {
@@ -206,6 +219,13 @@ impl IntoBytes for PublicKey {
             .to_compact_encoded_point()
             .expect("compact point");
         output.copy_from_slice(&encoded.as_bytes()[1..])
+    }
+}
+
+impl Deref for SharedSecret {
+    type Target = p256::ecdh::SharedSecret;
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

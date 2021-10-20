@@ -9,6 +9,8 @@ pub enum Error {
     EccCompact(p256::elliptic_curve::Error),
     #[error("signature error")]
     Signature(#[from] signature::Error),
+    #[error("invalid curve error")]
+    InvalidCurve,
 
     #[cfg(feature = "ecc608")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ecc608")))]
@@ -45,6 +47,10 @@ impl From<p256::elliptic_curve::Error> for Error {
 }
 
 impl Error {
+    pub fn invalid_curve() -> Error {
+        Error::InvalidCurve
+    }
+
     pub fn invalid_keytype(v: u8) -> Error {
         Error::Decode(DecodeError::Type(v))
     }
