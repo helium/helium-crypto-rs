@@ -282,4 +282,29 @@ mod tests {
             &hex!("003ca9d8667de0c07aa71d98b3c8065d2e97ab7bb9cb8776bcc0577a7ac58acd4e");
         assert!(PublicKey::try_from(NON_COMPACT_KEY).is_err());
     }
+
+    #[test]
+    fn ecdh_interop() {
+        // Generated a rust ecc_cmopact keypair and encoded it's to_vec
+        const KEYPAIR: &[u8] =
+            &hex!("00ec2a8e3984220e819ed2067c519244029ae51d572773e5895cf1f5c80ecb4487");
+
+        // Generated keypair in erlang libp2p_crypto, did an ecdh with that
+        // keypair and the public key from the keypair above which generated the
+        // other_shared_secret
+        const OTHER_PUBLIC_KEY: &str = "112DcRUBD21ZDZfysHaLtvKDw5j7GhWKZB29dxY8ykiYwNxz71aN";
+        const OTHER_SHARED_SECRET: &[u8] =
+            &hex!("254f56333bc10a6b6cc194ace2d88e3644226bbe07b28d88f6377cc5f23f8bcc");
+
+        // Reinstantiate my keypair
+        let keypair = Keypair::try_from(KEYPAIR).expect("keypair");
+        // Reinstantiate the other public key
+        let other_public_key: crate::PublicKey =
+            OTHER_PUBLIC_KEY.parse().expect("other public key");
+
+        // And now do an ecdh with my keypair and the other public key and
+        // compare it with the shared secret that the erlang ecdh generated
+        let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
+        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
+    }
 }

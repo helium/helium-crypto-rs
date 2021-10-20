@@ -20,6 +20,7 @@ default = []
 ecc608 = [ "ecc608-linux" ]
 
 [dev-dependencies]
+hex = "0"
 hex-literal = "0"
 rand = "0.8"
 sha2 = "0"
