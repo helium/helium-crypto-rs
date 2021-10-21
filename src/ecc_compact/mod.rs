@@ -1,13 +1,15 @@
 use crate::*;
 use p256::{
     ecdsa,
-    elliptic_curve::{sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
+    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
     FieldBytes,
 };
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::Deref};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PublicKey(pub(crate) p256::PublicKey);
+
+pub struct SharedSecret(pub(crate) p256::ecdh::SharedSecret);
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Signature(pub(crate) ecdsa::Signature);
@@ -123,6 +125,17 @@ impl Keypair {
     pub fn secret_to_vec(&self) -> Vec<u8> {
         self.secret.to_bytes().as_slice().to_vec()
     }
+
+    pub fn ecdh<'a, C>(&self, public_key: C) -> Result<SharedSecret>
+    where
+        C: TryInto<&'a PublicKey, Error = Error>,
+    {
+        let public_key = public_key.try_into()?;
+        let secret_key = p256::SecretKey::from_bytes(self.secret.to_bytes())?;
+        let shared_secret =
+            ecdh::diffie_hellman(secret_key.to_secret_scalar(), public_key.0.as_affine());
+        Ok(SharedSecret(shared_secret))
+    }
 }
 
 impl signature::Signature for Signature {
@@ -209,6 +222,13 @@ impl IntoBytes for PublicKey {
     }
 }
 
+impl Deref for SharedSecret {
+    type Target = p256::ecdh::SharedSecret;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Keypair, PublicKey, TryFrom};
@@ -261,5 +281,30 @@ mod tests {
         const NON_COMPACT_KEY: &[u8] =
             &hex!("003ca9d8667de0c07aa71d98b3c8065d2e97ab7bb9cb8776bcc0577a7ac58acd4e");
         assert!(PublicKey::try_from(NON_COMPACT_KEY).is_err());
+    }
+
+    #[test]
+    fn ecdh_interop() {
+        // Generated a rust ecc_cmopact keypair and encoded it's to_vec
+        const KEYPAIR: &[u8] =
+            &hex!("00ec2a8e3984220e819ed2067c519244029ae51d572773e5895cf1f5c80ecb4487");
+
+        // Generated keypair in erlang libp2p_crypto, did an ecdh with that
+        // keypair and the public key from the keypair above which generated the
+        // other_shared_secret
+        const OTHER_PUBLIC_KEY: &str = "112DcRUBD21ZDZfysHaLtvKDw5j7GhWKZB29dxY8ykiYwNxz71aN";
+        const OTHER_SHARED_SECRET: &[u8] =
+            &hex!("254f56333bc10a6b6cc194ace2d88e3644226bbe07b28d88f6377cc5f23f8bcc");
+
+        // Reinstantiate my keypair
+        let keypair = Keypair::try_from(KEYPAIR).expect("keypair");
+        // Reinstantiate the other public key
+        let other_public_key: crate::PublicKey =
+            OTHER_PUBLIC_KEY.parse().expect("other public key");
+
+        // And now do an ecdh with my keypair and the other public key and
+        // compare it with the shared secret that the erlang ecdh generated
+        let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
+        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
     }
 }

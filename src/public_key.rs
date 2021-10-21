@@ -116,15 +116,15 @@ impl IntoBytes for PublicKeyRepr {
     }
 }
 
-impl From<ecc_compact::PublicKey> for PublicKeyRepr {
-    fn from(v: ecc_compact::PublicKey) -> Self {
-        Self::EccCompact(v)
-    }
-}
-
 impl From<ed25519::PublicKey> for PublicKeyRepr {
     fn from(v: ed25519::PublicKey) -> Self {
         Self::Ed25519(v)
+    }
+}
+
+impl From<ecc_compact::PublicKey> for PublicKeyRepr {
+    fn from(v: ecc_compact::PublicKey) -> Self {
+        Self::EccCompact(v)
     }
 }
 
@@ -149,9 +149,29 @@ impl From<ecc_compact::PublicKey> for PublicKey {
     }
 }
 
+impl<'a> TryFrom<&'a PublicKey> for &'a ecc_compact::PublicKey {
+    type Error = Error;
+    fn try_from(v: &'a PublicKey) -> Result<Self> {
+        match &v.inner {
+            PublicKeyRepr::EccCompact(public_key) => Ok(public_key),
+            _ => Err(Error::invalid_curve()),
+        }
+    }
+}
+
 impl From<ed25519::PublicKey> for PublicKey {
     fn from(v: ed25519::PublicKey) -> Self {
         Self::for_network(Network::MainNet, v)
+    }
+}
+
+impl<'a> TryFrom<&'a PublicKey> for &'a ed25519::PublicKey {
+    type Error = Error;
+    fn try_from(v: &'a PublicKey) -> Result<Self> {
+        match &v.inner {
+            PublicKeyRepr::Ed25519(public_key) => Ok(public_key),
+            _ => Err(Error::invalid_curve()),
+        }
     }
 }
 
@@ -222,15 +242,19 @@ impl PublicKey {
         result
     }
 
-    /// Get the tag for this key
-    pub fn key_tag(&self) -> KeyTag {
-        let key_type = match self.inner {
+    /// Get the type for this key
+    pub fn key_type(&self) -> KeyType {
+        match self.inner {
             PublicKeyRepr::EccCompact(..) => KeyType::EccCompact,
             PublicKeyRepr::Ed25519(..) => KeyType::Ed25519,
-        };
+        }
+    }
+
+    /// Get the tag for this key
+    pub fn key_tag(&self) -> KeyTag {
         KeyTag {
             network: self.network,
-            key_type,
+            key_type: self.key_type(),
         }
     }
 }

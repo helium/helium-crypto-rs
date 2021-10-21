@@ -1,4 +1,5 @@
 use crate::*;
+use std::ops::Deref;
 
 /// Defines a trait for signing messages. Rather than the signature::Signer
 /// trait which deals with exact signature sizes, this trait allows for variable
@@ -15,6 +16,8 @@ pub enum Keypair {
     #[cfg(feature = "ecc608")]
     Ecc608(ecc608::Keypair),
 }
+
+pub struct SharedSecret(ecc_compact::SharedSecret);
 
 impl Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
@@ -70,6 +73,15 @@ impl Keypair {
         }
     }
 
+    pub fn ecdh(&self, public_key: &PublicKey) -> Result<SharedSecret> {
+        match self {
+            Self::EccCompact(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
+            #[cfg(feature = "ecc608")]
+            Self::Ecc608(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
+            _ => Err(Error::invalid_curve()),
+        }
+    }
+
     pub fn to_vec(&self) -> Vec<u8> {
         match self {
             Self::Ed25519(keypair) => keypair.to_vec(),
@@ -119,6 +131,13 @@ impl TryFrom<&[u8]> for Keypair {
     }
 }
 
+impl Deref for SharedSecret {
+    type Target = ecc_compact::SharedSecret;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +160,18 @@ mod tests {
             .public_key()
             .verify(b"hello world", &signature)
             .is_ok())
+    }
+
+    fn ecdh_test(key_tag: KeyTag) {
+        let keypair = Keypair::generate(key_tag, &mut OsRng);
+        let other = Keypair::generate(key_tag, &mut OsRng);
+        let keypair_shared = keypair
+            .ecdh(other.public_key())
+            .expect("keypair shared secret");
+        let other_shared = other
+            .ecdh(keypair.public_key())
+            .expect("other shared secret");
+        assert_eq!(keypair_shared.as_bytes(), other_shared.as_bytes());
     }
 
     #[test]
@@ -178,6 +209,14 @@ mod tests {
     #[test]
     fn sign_ecc_compact() {
         sign_test(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::EccCompact,
+        });
+    }
+
+    #[test]
+    fn ecdh_ecc_compact() {
+        ecdh_test(KeyTag {
             network: Network::MainNet,
             key_type: KeyType::EccCompact,
         });
