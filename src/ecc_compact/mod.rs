@@ -4,9 +4,13 @@ use p256::{
     elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
     FieldBytes,
 };
-use std::{convert::TryFrom, ops::Deref};
+use std::{
+    convert::TryFrom,
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct PublicKey(pub(crate) p256::PublicKey);
 
 pub struct SharedSecret(pub(crate) p256::ecdh::SharedSecret);
@@ -219,6 +223,23 @@ impl IntoBytes for PublicKey {
             .to_compact_encoded_point()
             .expect("compact point");
         output.copy_from_slice(&encoded.as_bytes()[1..])
+    }
+}
+
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Hash for PublicKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let encoded = self
+            .0
+            .as_affine()
+            .to_compact_encoded_point()
+            .expect("compact point");
+        state.write(encoded.as_bytes())
     }
 }
 

@@ -37,12 +37,13 @@ pub use public_key::{PublicKey, PublicKeySize, Verify};
 use std::{
     convert::{From, TryFrom, TryInto},
     fmt,
+    hash::Hash,
     str::FromStr,
 };
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Hash)]
 pub enum Network {
     MainNet,
     TestNet,
