@@ -276,4 +276,85 @@ mod tests {
         );
         assert_eq!(public_key.to_string(), B58.to_string())
     }
+
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    fn default_bytes() -> [u8; 33] {
+        [
+            0x00, 143, 35, 233, 106, 182, 187, 255, 72, 200, 146, 60, 172, 131, 29, 201, 113, 17,
+            188, 243, 61, 186, 159, 90, 133, 57, 192, 15, 157, 147, 85, 26, 241,
+        ]
+    }
+
+    // move the key to make sure we don't accidentally hash the same thing twice in tests
+    fn pubkey_hash(pubkey: PublicKey) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        pubkey.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn hash_match() {
+        let bytes = default_bytes();
+
+        let public_key_one = PublicKey::from_bytes(&bytes).unwrap();
+        let public_key_two = PublicKey::from_bytes(&bytes).unwrap();
+
+        let hash_one = pubkey_hash(public_key_one);
+        let hash_two = pubkey_hash(public_key_two);
+        // hashing same input twice should always match
+        assert_eq!(hash_one, hash_two);
+    }
+
+    #[test]
+    fn hash_diff_network() {
+        let bytes_mainnet = default_bytes();
+
+        let mut bytes_testnet = default_bytes();
+        bytes_testnet[0] = 0x10;
+
+        let public_key_mainnet = PublicKey::from_bytes(&bytes_mainnet).unwrap();
+        let public_key_testnet = PublicKey::from_bytes(&bytes_testnet).unwrap();
+        // we verify the different networks
+        assert_eq!(public_key_mainnet.network, Network::MainNet);
+        assert_eq!(public_key_testnet.network, Network::TestNet);
+
+        let hash_mainnet = pubkey_hash(public_key_mainnet);
+        let hash_testnet = pubkey_hash(public_key_testnet);
+        // we confirm no collision
+        assert_ne!(hash_mainnet, hash_testnet);
+    }
+
+    #[test]
+    fn hash_diff_keytype() {
+        let bytes_ecccompact = default_bytes();
+        let mut bytes_ed25519 = default_bytes();
+        bytes_ed25519[0] = 0x01;
+
+        let public_key_ecccompact = PublicKey::from_bytes(&bytes_ecccompact).unwrap();
+        let public_key_ed25519 = PublicKey::from_bytes(&bytes_ed25519).unwrap();
+        // we verify the different keytypes
+        assert_eq!(public_key_ecccompact.key_type(), KeyType::EccCompact);
+        assert_eq!(public_key_ed25519.key_type(), KeyType::Ed25519);
+
+        let hash_ecccompact = pubkey_hash(public_key_ecccompact);
+        let hash_ed25519 = pubkey_hash(public_key_ed25519);
+        // we verify no collision
+        assert_ne!(hash_ecccompact, hash_ed25519);
+    }
+
+    #[test]
+    fn hash_one_byte_diff() {
+        let bytes_one = default_bytes();
+        let mut bytes_two = default_bytes();
+        bytes_two[8] = 0xAB;
+
+        let public_key_one = PublicKey::from_bytes(&bytes_one).unwrap();
+        let public_key_two = PublicKey::from_bytes(&bytes_two).unwrap();
+
+        let hash_one = pubkey_hash(public_key_one);
+        let hash_two = pubkey_hash(public_key_two);
+        assert_ne!(hash_one, hash_two);
+    }
 }
