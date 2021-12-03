@@ -287,7 +287,7 @@ mod tests {
         ]
     }
 
-    // move the key to make sure we don't accidentally hash the same thing twice in tests
+    // move the key so as to consume it and avoid accidentally hashing the same thing twice in tests
     fn pubkey_hash(pubkey: PublicKey) -> u64 {
         let mut hasher = DefaultHasher::new();
         pubkey.hash(&mut hasher);
