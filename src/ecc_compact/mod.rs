@@ -60,7 +60,8 @@ impl TryFrom<&[u8]> for Keypair {
     type Error = Error;
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let secret = p256::SecretKey::from_bytes(&input[1..])?;
+        let secret =
+            p256::SecretKey::from_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
