@@ -277,9 +277,9 @@ mod tests {
         assert_eq!(public_key.to_string(), B58.to_string())
     }
 
+    use hex_literal::hex;
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use hex_literal::hex;
 
     fn default_bytes() -> [u8; 33] {
         hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1")
@@ -292,11 +292,15 @@ mod tests {
         hasher.finish()
     }
 
+    fn parse_pubkey(bytes: &[u8; 33]) -> PublicKey {
+        PublicKey::from_bytes(&bytes).expect("failed to parse bytes as publickey")
+    }
+
     #[test]
     fn hash_match() {
         let bytes = default_bytes();
-        let public_key_one = PublicKey::from_bytes(&bytes).unwrap();
-        let public_key_two = PublicKey::from_bytes(&bytes).unwrap();
+        let public_key_one = parse_pubkey(&bytes);
+        let public_key_two = parse_pubkey(&bytes);
 
         let hash_one = pubkey_hash(public_key_one);
         let hash_two = pubkey_hash(public_key_two);
@@ -311,8 +315,8 @@ mod tests {
         let mut bytes_testnet = default_bytes();
         bytes_testnet[0] = 0x10;
 
-        let public_key_mainnet = PublicKey::from_bytes(&bytes_mainnet).unwrap();
-        let public_key_testnet = PublicKey::from_bytes(&bytes_testnet).unwrap();
+        let public_key_mainnet = parse_pubkey(&bytes_mainnet);
+        let public_key_testnet = parse_pubkey(&bytes_testnet);
         // we verify the different networks
         assert_eq!(public_key_mainnet.network, Network::MainNet);
         assert_eq!(public_key_testnet.network, Network::TestNet);
@@ -329,8 +333,8 @@ mod tests {
         let mut bytes_ed25519 = default_bytes();
         bytes_ed25519[0] = 0x01;
 
-        let public_key_ecccompact = PublicKey::from_bytes(&bytes_ecccompact).unwrap();
-        let public_key_ed25519 = PublicKey::from_bytes(&bytes_ed25519).unwrap();
+        let public_key_ecccompact =parse_pubkey(&bytes_ecccompact);
+        let public_key_ed25519 = parse_pubkey(&bytes_ed25519);
         // we verify the different keytypes
         assert_eq!(public_key_ecccompact.key_type(), KeyType::EccCompact);
         assert_eq!(public_key_ed25519.key_type(), KeyType::Ed25519);
@@ -347,8 +351,8 @@ mod tests {
         let mut bytes_two = default_bytes();
         bytes_two[8] = 0xAB;
 
-        let public_key_one = PublicKey::from_bytes(&bytes_one).unwrap();
-        let public_key_two = PublicKey::from_bytes(&bytes_two).unwrap();
+        let public_key_one = parse_pubkey(&bytes_one);
+        let public_key_two = parse_pubkey(&bytes_two);
 
         let hash_one = pubkey_hash(public_key_one);
         let hash_two = pubkey_hash(public_key_two);
