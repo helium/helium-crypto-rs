@@ -282,9 +282,7 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    const fn default_bytes() -> [u8; 33] {
-        hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1")
-    }
+    const DEFAULT_BYTES: [u8; 33] = hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1");
 
     // move the key so as to consume it and avoid accidentally hashing the same thing twice in tests
     fn pubkey_hash(pubkey: PublicKey) -> u64 {
@@ -299,7 +297,7 @@ mod tests {
 
     #[test]
     fn hash_match() {
-        let bytes = default_bytes();
+        let bytes = DEFAULT_BYTES;
         let public_key_one = parse_pubkey(&bytes);
         let public_key_two = parse_pubkey(&bytes);
 
@@ -311,9 +309,9 @@ mod tests {
 
     #[test]
     fn hash_diff_network() {
-        let bytes_mainnet = default_bytes();
+        let bytes_mainnet = DEFAULT_BYTES;
 
-        let mut bytes_testnet = default_bytes();
+        let mut bytes_testnet = DEFAULT_BYTES;
         bytes_testnet[0] = 0x10;
 
         let public_key_mainnet = parse_pubkey(&bytes_mainnet);
@@ -330,8 +328,8 @@ mod tests {
 
     #[test]
     fn hash_diff_keytype() {
-        let bytes_ecccompact = default_bytes();
-        let mut bytes_ed25519 = default_bytes();
+        let bytes_ecccompact = DEFAULT_BYTES;
+        let mut bytes_ed25519 = DEFAULT_BYTES;
         bytes_ed25519[0] = 0x01;
 
         let public_key_ecccompact = parse_pubkey(&bytes_ecccompact);
@@ -348,8 +346,8 @@ mod tests {
 
     #[test]
     fn hash_one_byte_diff() {
-        let bytes_one = default_bytes();
-        let mut bytes_two = default_bytes();
+        let bytes_one = DEFAULT_BYTES;
+        let mut bytes_two = DEFAULT_BYTES;
         bytes_two[8] = 0xAB;
 
         let public_key_one = parse_pubkey(&bytes_one);
