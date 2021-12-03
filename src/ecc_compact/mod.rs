@@ -242,7 +242,8 @@ impl PartialEq for PublicKey {
 
 impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let encoded = self.to_encoded_point();
+        use p256::elliptic_curve::sec1::ToEncodedPoint;
+        let encoded = self.0.as_affine().to_encoded_point(false);
         state.write(encoded.as_bytes())
     }
 }
