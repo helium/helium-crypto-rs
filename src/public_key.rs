@@ -4,6 +4,7 @@
 //! keypair.
 use crate::*;
 use std::{convert::TryFrom, hash::Hash};
+
 ///Verify a given message against a given signature slice. Public keys are
 ///expected to implemt this trait to verify signed messages.
 pub trait Verify {
