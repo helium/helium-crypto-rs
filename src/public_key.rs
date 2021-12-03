@@ -282,7 +282,7 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    fn default_bytes() -> [u8; 33] {
+    const fn default_bytes() -> [u8; 33] {
         hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1")
     }
 
