@@ -215,13 +215,21 @@ impl TryFrom<&[u8]> for PublicKey {
     }
 }
 
-impl IntoBytes for PublicKey {
-    fn bytes_into(&self, output: &mut [u8]) {
-        let encoded = self
-            .0
+impl PublicKey {
+    // this unreachable hint only holds if every constructor of PublicKey
+    // verifies "is_compactable".
+    fn to_encoded_point(&self) -> p256::EncodedPoint {
+        use std::hint::unreachable_unchecked;
+        self.0
             .as_affine()
             .to_compact_encoded_point()
-            .expect("compact point");
+            .unwrap_or_else(|| unsafe { unreachable_unchecked() })
+    }
+}
+
+impl IntoBytes for PublicKey {
+    fn bytes_into(&self, output: &mut [u8]) {
+        let encoded = self.to_encoded_point();
         output.copy_from_slice(&encoded.as_bytes()[1..])
     }
 }
@@ -234,11 +242,7 @@ impl PartialEq for PublicKey {
 
 impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let encoded = self
-            .0
-            .as_affine()
-            .to_compact_encoded_point()
-            .expect("compact point");
+        let encoded = self.to_encoded_point();
         state.write(encoded.as_bytes())
     }
 }

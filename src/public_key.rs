@@ -334,7 +334,7 @@ mod tests {
         let mut bytes_ed25519 = default_bytes();
         bytes_ed25519[0] = 0x01;
 
-        let public_key_ecccompact =parse_pubkey(&bytes_ecccompact);
+        let public_key_ecccompact = parse_pubkey(&bytes_ecccompact);
         let public_key_ed25519 = parse_pubkey(&bytes_ed25519);
         // we verify the different keytypes
         assert_eq!(public_key_ecccompact.key_type(), KeyType::EccCompact);
