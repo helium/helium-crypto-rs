@@ -3,6 +3,7 @@ use std::{
     convert::TryFrom,
     hash::{Hash, Hasher},
 };
+
 #[derive(Debug, Clone)]
 pub struct PublicKey(ed25519_dalek::PublicKey);
 
