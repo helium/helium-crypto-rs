@@ -282,7 +282,8 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    const DEFAULT_BYTES: [u8; 33] = hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1");
+    const DEFAULT_BYTES: [u8; 33] =
+        hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1");
 
     // move the key so as to consume it and avoid accidentally hashing the same thing twice in tests
     fn pubkey_hash(pubkey: PublicKey) -> u64 {
