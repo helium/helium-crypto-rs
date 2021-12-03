@@ -1,7 +1,10 @@
 use crate::*;
-use std::convert::TryFrom;
+use std::{
+    convert::TryFrom,
+    hash::{Hash, Hasher},
+};
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct PublicKey(ed25519_dalek::PublicKey);
 
 #[derive(Debug, PartialEq, Clone)]
@@ -166,6 +169,18 @@ impl public_key::Verify for PublicKey {
 impl IntoBytes for PublicKey {
     fn bytes_into(&self, output: &mut [u8]) {
         output.copy_from_slice(self.as_ref())
+    }
+}
+
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Hash for PublicKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.as_ref())
     }
 }
 

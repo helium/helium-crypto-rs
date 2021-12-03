@@ -3,7 +3,7 @@
 //! since a client will need to be able to parse and use a public key from any
 //! keypair.
 use crate::*;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, hash::Hash};
 
 ///Verify a given message against a given signature slice. Public keys are
 ///expected to implemt this trait to verify signed messages.
@@ -24,7 +24,7 @@ pub trait PublicKeySize {
 /// network.
 ///
 /// Public keys can convert to and from their binary and base58 representation
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct PublicKey {
     /// The network this public key is valid for
     pub network: Network,
@@ -32,7 +32,7 @@ pub struct PublicKey {
 }
 
 /// Holds the actual representation of all supported public key types.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub(crate) enum PublicKeyRepr {
     EccCompact(ecc_compact::PublicKey),
     Ed25519(ed25519::PublicKey),
@@ -276,5 +276,86 @@ mod tests {
             }
         );
         assert_eq!(public_key.to_string(), B58.to_string())
+    }
+
+    use hex_literal::hex;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    const DEFAULT_BYTES: [u8; 33] =
+        hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1");
+
+    // move the key so as to consume it and avoid accidentally hashing the same thing twice in tests
+    fn pubkey_hash(pubkey: PublicKey) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        pubkey.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn parse_pubkey(bytes: &[u8; 33]) -> PublicKey {
+        PublicKey::from_bytes(&bytes).expect("failed to parse bytes as publickey")
+    }
+
+    #[test]
+    fn hash_match() {
+        let bytes = DEFAULT_BYTES;
+        let public_key_one = parse_pubkey(&bytes);
+        let public_key_two = parse_pubkey(&bytes);
+
+        let hash_one = pubkey_hash(public_key_one);
+        let hash_two = pubkey_hash(public_key_two);
+        // hashing same input twice should always match
+        assert_eq!(hash_one, hash_two);
+    }
+
+    #[test]
+    fn hash_diff_network() {
+        let bytes_mainnet = DEFAULT_BYTES;
+
+        let mut bytes_testnet = DEFAULT_BYTES;
+        bytes_testnet[0] = 0x10;
+
+        let public_key_mainnet = parse_pubkey(&bytes_mainnet);
+        let public_key_testnet = parse_pubkey(&bytes_testnet);
+        // we verify the different networks
+        assert_eq!(public_key_mainnet.network, Network::MainNet);
+        assert_eq!(public_key_testnet.network, Network::TestNet);
+
+        let hash_mainnet = pubkey_hash(public_key_mainnet);
+        let hash_testnet = pubkey_hash(public_key_testnet);
+        // we confirm no collision
+        assert_ne!(hash_mainnet, hash_testnet);
+    }
+
+    #[test]
+    fn hash_diff_keytype() {
+        let bytes_ecccompact = DEFAULT_BYTES;
+        let mut bytes_ed25519 = DEFAULT_BYTES;
+        bytes_ed25519[0] = 0x01;
+
+        let public_key_ecccompact = parse_pubkey(&bytes_ecccompact);
+        let public_key_ed25519 = parse_pubkey(&bytes_ed25519);
+        // we verify the different keytypes
+        assert_eq!(public_key_ecccompact.key_type(), KeyType::EccCompact);
+        assert_eq!(public_key_ed25519.key_type(), KeyType::Ed25519);
+
+        let hash_ecccompact = pubkey_hash(public_key_ecccompact);
+        let hash_ed25519 = pubkey_hash(public_key_ed25519);
+        // we verify no collision
+        assert_ne!(hash_ecccompact, hash_ed25519);
+    }
+
+    #[test]
+    fn hash_one_byte_diff() {
+        let bytes_one = DEFAULT_BYTES;
+        let mut bytes_two = DEFAULT_BYTES;
+        bytes_two[8] = 0xAB;
+
+        let public_key_one = parse_pubkey(&bytes_one);
+        let public_key_two = parse_pubkey(&bytes_two);
+
+        let hash_one = pubkey_hash(public_key_one);
+        let hash_two = pubkey_hash(public_key_two);
+        assert_ne!(hash_one, hash_two);
     }
 }
