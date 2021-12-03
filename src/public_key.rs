@@ -279,12 +279,10 @@ mod tests {
 
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
+    use hex_literal::hex;
 
     fn default_bytes() -> [u8; 33] {
-        [
-            0x00, 143, 35, 233, 106, 182, 187, 255, 72, 200, 146, 60, 172, 131, 29, 201, 113, 17,
-            188, 243, 61, 186, 159, 90, 133, 57, 192, 15, 157, 147, 85, 26, 241,
-        ]
+        hex!("008f23e96ab6bbff48c8923cac831dc97111bcf33dba9f5a8539c00f9d93551af1")
     }
 
     // move the key so as to consume it and avoid accidentally hashing the same thing twice in tests
@@ -297,7 +295,6 @@ mod tests {
     #[test]
     fn hash_match() {
         let bytes = default_bytes();
-
         let public_key_one = PublicKey::from_bytes(&bytes).unwrap();
         let public_key_two = PublicKey::from_bytes(&bytes).unwrap();
 
