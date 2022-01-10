@@ -24,11 +24,28 @@ pub trait PublicKeySize {
 /// network.
 ///
 /// Public keys can convert to and from their binary and base58 representation
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Hash)]
 pub struct PublicKey {
     /// The network this public key is valid for
     pub network: Network,
     inner: PublicKeyRepr,
+}
+
+impl fmt::Debug for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let r#type = match self.inner {
+            PublicKeyRepr::Ed25519(_) => "ed25519",
+            PublicKeyRepr::EccCompact(_) => "ecc_compact",
+        };
+        let output = format!(
+            "PublicKey {{ \
+        network: {}, type: {}, address: {} }}",
+            &self.network,
+            &r#type,
+            &self.to_string()
+        );
+        f.write_str(&output)
+    }
 }
 
 /// Holds the actual representation of all supported public key types.
@@ -357,5 +374,19 @@ mod tests {
         let hash_one = pubkey_hash(public_key_one);
         let hash_two = pubkey_hash(public_key_two);
         assert_ne!(hash_one, hash_two);
+    }
+
+    #[test]
+    fn custom_debug() {
+        let public_key = PublicKey::from_bytes(DEFAULT_BYTES).unwrap();
+
+        let debug = format!("{:?}", public_key);
+        assert_eq!(
+            debug,
+            "PublicKey { \
+                        network: mainnet, type: ecc_compact, \
+                        address: 11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv \
+                    }"
+        );
     }
 }
