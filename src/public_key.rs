@@ -39,7 +39,7 @@ impl fmt::Debug for PublicKey {
         };
         let output = format!(
             "PublicKey {{ \
-        network: {:?}, type: {}, base58: {} }}",
+        network: {}, type: {}, address: {} }}",
             &self.network,
             &r#type,
             &self.to_string()
@@ -384,8 +384,8 @@ mod tests {
         assert_eq!(
             debug,
             "PublicKey { \
-                        network: MainNet, type: ecc_compact, \
-                        base58: 11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv \
+                        network: mainnet, type: ecc_compact, \
+                        address: 11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv \
                     }"
         );
     }
