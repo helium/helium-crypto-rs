@@ -11,11 +11,20 @@ pub enum Error {
     Signature(#[from] signature::Error),
     #[error("invalid curve error")]
     InvalidCurve,
+    #[error("invalid network")]
+    InvalidNetwork,
+    #[error("io error")]
+    Io(std::io::Error),
 
     #[cfg(feature = "ecc608")]
     #[cfg_attr(docsrs, doc(cfg(feature = "ecc608")))]
     #[error("ecc608 error")]
     Ecc608(#[from] ecc608_linux::Error),
+
+    #[cfg(feature = "multisig")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "multisig")))]
+    #[error("multisig error")]
+    MultiSig(#[from] crate::multisig::Error),
 }
 
 #[derive(Error, Debug)]
@@ -46,9 +55,19 @@ impl From<p256::elliptic_curve::Error> for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(v: std::io::Error) -> Self {
+        Self::Io(v)
+    }
+}
+
 impl Error {
     pub fn invalid_curve() -> Error {
         Error::InvalidCurve
+    }
+
+    pub fn invalid_network() -> Error {
+        Error::InvalidNetwork
     }
 
     pub fn invalid_keytype(v: u8) -> Error {

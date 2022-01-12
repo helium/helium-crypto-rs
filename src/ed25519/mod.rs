@@ -43,10 +43,10 @@ impl TryFrom<&[u8]> for Keypair {
     }
 }
 
-impl IntoBytes for Keypair {
-    fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(self.key_tag());
-        output[1..].copy_from_slice(&self.secret.to_bytes());
+impl WriteTo for Keypair {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
+        output.write_all(&[u8::from(self.key_tag())])?;
+        output.write_all(&self.secret.to_bytes())
     }
 }
 
@@ -78,7 +78,8 @@ impl Keypair {
 
     pub fn to_vec(&self) -> Vec<u8> {
         let mut result = vec![0u8; KEYPAIR_LENGTH];
-        self.bytes_into(&mut result);
+        self.write_to(&mut std::io::Cursor::new(&mut result))
+            .unwrap();
         result
     }
 
@@ -152,13 +153,11 @@ impl TryFrom<&[u8]> for Signature {
 }
 
 impl PublicKeySize for PublicKey {
-    fn public_key_size(&self) -> usize {
-        PUBLIC_KEY_LENGTH
-    }
+    const PUBLIC_KEY_SIZE: usize = PUBLIC_KEY_LENGTH;
 }
 
 impl public_key::Verify for PublicKey {
-    fn verify(&self, msg: &[u8], signature: &[u8]) -> std::result::Result<(), Error> {
+    fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use ed25519_dalek::Verifier;
         let signature = Signature::try_from(signature)?;
         Verifier::<ed25519_dalek::Signature>::verify(&self.0, msg, &signature.0)
@@ -166,9 +165,9 @@ impl public_key::Verify for PublicKey {
     }
 }
 
-impl IntoBytes for PublicKey {
-    fn bytes_into(&self, output: &mut [u8]) {
-        output.copy_from_slice(self.as_ref())
+impl WriteTo for PublicKey {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
+        output.write_all(self.as_ref())
     }
 }
 
@@ -188,9 +187,16 @@ impl TryFrom<&[u8]> for PublicKey {
     type Error = Error;
 
     fn try_from(input: &[u8]) -> Result<Self> {
-        Ok(PublicKey(ed25519_dalek::PublicKey::from_bytes(
-            &input[1..],
-        )?))
+        let mut input = std::io::Cursor::new(&input[1..]);
+        Self::read_from(&mut input)
+    }
+}
+
+impl ReadFrom for PublicKey {
+    fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
+        let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
+        input.read_exact(&mut buf)?;
+        Ok(PublicKey(ed25519_dalek::PublicKey::from_bytes(&buf)?))
     }
 }
 
