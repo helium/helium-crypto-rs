@@ -1,7 +1,7 @@
 use crate::*;
 use p256::{
     ecdsa,
-    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, weierstrass::DecompactPoint},
+    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, DecompactPoint},
     FieldBytes,
 };
 use std::{
@@ -65,7 +65,7 @@ impl TryFrom<&[u8]> for Keypair {
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
         let secret =
-            p256::SecretKey::from_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
+            p256::SecretKey::from_be_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
@@ -102,7 +102,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = p256::SecretKey::from_bytes(entropy)?;
+        let secret = p256::SecretKey::from_be_bytes(entropy)?;
         let public_key = secret.public_key();
         if !public_key.is_compactable() {
             return Err(Error::not_compact());
@@ -136,9 +136,9 @@ impl Keypair {
         C: TryInto<&'a PublicKey, Error = Error>,
     {
         let public_key = public_key.try_into()?;
-        let secret_key = p256::SecretKey::from_bytes(self.secret.to_bytes())?;
+        let secret_key = p256::SecretKey::from_be_bytes(&self.secret.to_bytes())?;
         let shared_secret =
-            ecdh::diffie_hellman(secret_key.to_secret_scalar(), public_key.0.as_affine());
+            ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), public_key.0.as_affine());
         Ok(SharedSecret(shared_secret))
     }
 }
@@ -204,12 +204,15 @@ impl TryFrom<&[u8]> for PublicKey {
         } else {
             // Otherwise assume it's just raw bytes
             use p256::elliptic_curve::sec1::FromEncodedPoint;
-            let encoded_point = p256::EncodedPoint::from_bytes(input)?;
+            let encoded_point =
+                p256::EncodedPoint::from_bytes(input).map_err(p256::elliptic_curve::Error::from)?;
             // Convert to an affine point, then to the compact encoded form.
             // Then finally convert to the p256 public key.
-            let public_key = p256::AffinePoint::from_encoded_point(&encoded_point)
-                .and_then(|affine_point| affine_point.to_compact_encoded_point())
-                .and_then(|compact_point| p256::PublicKey::from_encoded_point(&compact_point))
+            let public_key = Option::from(p256::AffinePoint::from_encoded_point(&encoded_point))
+                .and_then(|affine_point: p256::AffinePoint| affine_point.to_compact_encoded_point())
+                .and_then(|compact_point| {
+                    Option::from(p256::PublicKey::from_encoded_point(&compact_point))
+                })
                 .ok_or_else(Error::not_compact)?;
             Ok(PublicKey(public_key))
         }
