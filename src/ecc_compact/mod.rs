@@ -208,26 +208,13 @@ impl TryFrom<&[u8]> for PublicKey {
                 p256::EncodedPoint::from_bytes(input).map_err(p256::elliptic_curve::Error::from)?;
             // Convert to an affine point, then to the compact encoded form.
             // Then finally convert to the p256 public key.
-            let affine_point = p256::AffinePoint::from_encoded_point(&encoded_point);
-            let compact_point = if bool::from(affine_point.is_some()) {
-                affine_point
-                    .unwrap()
-                    // Ideally to_compact_encoded_point would also return a
-                    // CtOption but threading that through the elliptic_curve
-                    // and elliptic_curves repos while keeping versions correct
-                    // was.. complicated
-                    .to_compact_encoded_point()
-                    .ok_or_else(Error::not_compact)?
-            } else {
-                return Err(Error::not_compact());
-            };
-
-            let public_key = p256::PublicKey::from_encoded_point(&compact_point);
-            if bool::from(public_key.is_some()) {
-                Ok(PublicKey(public_key.unwrap()))
-            } else {
-                Err(Error::not_compact())
-            }
+            let public_key = Option::from(p256::AffinePoint::from_encoded_point(&encoded_point))
+                .and_then(|affine_point: p256::AffinePoint| affine_point.to_compact_encoded_point())
+                .and_then(|compact_point| {
+                    Option::from(p256::PublicKey::from_encoded_point(&compact_point))
+                })
+                .ok_or_else(Error::not_compact)?;
+            Ok(PublicKey(public_key))
         }
     }
 }
