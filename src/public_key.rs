@@ -33,23 +33,16 @@ pub struct PublicKey {
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let r#type = match self.inner {
-            PublicKeyRepr::Ed25519(_) => "ed25519",
-            PublicKeyRepr::EccCompact(_) => "ecc_compact",
-        };
-        let output = format!(
-            "PublicKey {{ \
-        network: {}, type: {}, address: {} }}",
-            &self.network,
-            &r#type,
-            &self.to_string()
-        );
-        f.write_str(&output)
+        f.debug_struct("PublicKey")
+            .field("network", &self.network)
+            .field("type", &self.key_type())
+            .field("address", &self.to_string())
+            .finish()
     }
 }
 
 /// Holds the actual representation of all supported public key types.
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Hash)]
 pub(crate) enum PublicKeyRepr {
     EccCompact(ecc_compact::PublicKey),
     Ed25519(ed25519::PublicKey),
@@ -374,19 +367,5 @@ mod tests {
         let hash_one = pubkey_hash(public_key_one);
         let hash_two = pubkey_hash(public_key_two);
         assert_ne!(hash_one, hash_two);
-    }
-
-    #[test]
-    fn custom_debug() {
-        let public_key = PublicKey::from_bytes(DEFAULT_BYTES).unwrap();
-
-        let debug = format!("{:?}", public_key);
-        assert_eq!(
-            debug,
-            "PublicKey { \
-                        network: mainnet, type: ecc_compact, \
-                        address: 11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv \
-                    }"
-        );
     }
 }
