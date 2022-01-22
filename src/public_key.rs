@@ -17,7 +17,7 @@ pub trait Verify {
 /// The public key byte length is the underlying public key length all key types
 /// with an extra type byte prefixed.
 pub trait PublicKeySize {
-    fn public_key_size(&self) -> usize;
+    const PUBLIC_KEY_SIZE: usize;
 }
 
 /// A public key representing any of the supported public key types on a given
@@ -28,47 +28,39 @@ pub trait PublicKeySize {
 pub struct PublicKey {
     /// The network this public key is valid for
     pub network: Network,
-    inner: PublicKeyRepr,
+    pub(crate) inner: PublicKeyRepr,
 }
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let r#type = match self.inner {
-            PublicKeyRepr::Ed25519(_) => "ed25519",
-            PublicKeyRepr::EccCompact(_) => "ecc_compact",
-        };
-        let output = format!(
-            "PublicKey {{ \
-        network: {}, type: {}, address: {} }}",
-            &self.network,
-            &r#type,
-            &self.to_string()
-        );
-        f.write_str(&output)
+        f.debug_struct("PublicKey")
+            .field("network", &self.network)
+            .field("type", &self.key_type())
+            .field("address", &self.to_string())
+            .finish()
     }
 }
 
 /// Holds the actual representation of all supported public key types.
-#[derive(Debug, Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Hash)]
 pub(crate) enum PublicKeyRepr {
     EccCompact(ecc_compact::PublicKey),
     Ed25519(ed25519::PublicKey),
+    #[cfg(feature = "multisig")]
+    MultiSig(multisig::PublicKey),
 }
 
 impl Eq for PublicKey {}
 
-impl PublicKeySize for PublicKeyRepr {
-    fn public_key_size(&self) -> usize {
-        match self {
-            Self::EccCompact(key) => key.public_key_size(),
-            Self::Ed25519(key) => key.public_key_size(),
-        }
+impl PartialOrd for PublicKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-impl PublicKeySize for PublicKey {
-    fn public_key_size(&self) -> usize {
-        self.inner.public_key_size()
+impl Ord for PublicKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.to_string().cmp(&other.to_string())
     }
 }
 
@@ -113,22 +105,44 @@ impl TryFrom<&[u8]> for PublicKeyRepr {
         match KeyType::try_from(bytes[0])? {
             KeyType::EccCompact => Ok(Self::EccCompact(ecc_compact::PublicKey::try_from(bytes)?)),
             KeyType::Ed25519 => Ok(Self::Ed25519(ed25519::PublicKey::try_from(bytes)?)),
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => Ok(Self::MultiSig(multisig::PublicKey::try_from(bytes)?)),
         }
     }
 }
 
-impl IntoBytes for PublicKey {
-    fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(self.key_tag());
-        self.inner.bytes_into(&mut output[1..]);
+impl WriteTo for PublicKey {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
+        output.write_all(&[u8::from(self.key_tag())])?;
+        self.inner.write_to(output)
     }
 }
 
-impl IntoBytes for PublicKeyRepr {
-    fn bytes_into(&self, output: &mut [u8]) {
+impl ReadFrom for PublicKey {
+    fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
+        let key_tag = KeyTag::read_from(input)?;
+        let inner = match key_tag.key_type {
+            KeyType::EccCompact => {
+                PublicKeyRepr::EccCompact(ecc_compact::PublicKey::read_from(input)?)
+            }
+            KeyType::Ed25519 => PublicKeyRepr::Ed25519(ed25519::PublicKey::read_from(input)?),
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => PublicKeyRepr::MultiSig(multisig::PublicKey::read_from(input)?),
+        };
+        Ok(Self {
+            network: key_tag.network,
+            inner,
+        })
+    }
+}
+
+impl WriteTo for PublicKeyRepr {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
         match self {
-            Self::EccCompact(key) => key.bytes_into(output),
-            Self::Ed25519(key) => key.bytes_into(output),
+            Self::EccCompact(key) => key.write_to(output),
+            Self::Ed25519(key) => key.write_to(output),
+            #[cfg(feature = "multisig")]
+            Self::MultiSig(key) => key.write_to(output),
         }
     }
 }
@@ -145,6 +159,13 @@ impl From<ecc_compact::PublicKey> for PublicKeyRepr {
     }
 }
 
+#[cfg(feature = "multisig")]
+impl From<multisig::PublicKey> for PublicKeyRepr {
+    fn from(v: multisig::PublicKey) -> Self {
+        Self::MultiSig(v)
+    }
+}
+
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         self.inner.verify(msg, signature)
@@ -156,6 +177,8 @@ impl Verify for PublicKeyRepr {
         match self {
             Self::Ed25519(key) => key.verify(msg, signature),
             Self::EccCompact(key) => key.verify(msg, signature),
+            #[cfg(feature = "multisig")]
+            Self::MultiSig(key) => key.verify(msg, signature),
         }
     }
 }
@@ -202,8 +225,11 @@ impl std::str::FromStr for PublicKey {
 
 impl std::fmt::Display for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        // allocate one extra byte for the base58 version
         let mut data = vec![0u8; self.public_key_size() + 1];
-        self.bytes_into(&mut data[1..]);
+        // unwrap ok sicne the allocated data can be assumed to be big enough
+        self.write_to(&mut std::io::Cursor::new(&mut data[1..]))
+            .unwrap();
         let encoded = bs58::encode(&data).with_check().into_string();
         f.write_str(&encoded)
     }
@@ -252,10 +278,12 @@ impl PublicKey {
         Self::try_from(bytes.as_ref())
     }
 
-    /// Convert a public to a Vec of it's binary form.
+    /// Convert a public key to it's binary form.
     pub fn to_vec(&self) -> Vec<u8> {
         let mut result = vec![0u8; self.public_key_size()];
-        self.bytes_into(&mut result);
+        // Unwrap ok here since we've allocated enough space for the output
+        self.write_to(&mut std::io::Cursor::new(&mut result))
+            .unwrap();
         result
     }
 
@@ -264,6 +292,8 @@ impl PublicKey {
         match self.inner {
             PublicKeyRepr::EccCompact(..) => KeyType::EccCompact,
             PublicKeyRepr::Ed25519(..) => KeyType::Ed25519,
+            #[cfg(feature = "multisig")]
+            PublicKeyRepr::MultiSig(..) => KeyType::MultiSig,
         }
     }
 
@@ -272,6 +302,15 @@ impl PublicKey {
         KeyTag {
             network: self.network,
             key_type: self.key_type(),
+        }
+    }
+
+    pub fn public_key_size(&self) -> usize {
+        match self.inner {
+            PublicKeyRepr::EccCompact(..) => ecc_compact::PublicKey::PUBLIC_KEY_SIZE,
+            PublicKeyRepr::Ed25519(..) => ed25519::PublicKey::PUBLIC_KEY_SIZE,
+            #[cfg(feature = "multisig")]
+            PublicKeyRepr::MultiSig(..) => multisig::PublicKey::PUBLIC_KEY_SIZE,
         }
     }
 }
@@ -374,19 +413,5 @@ mod tests {
         let hash_one = pubkey_hash(public_key_one);
         let hash_two = pubkey_hash(public_key_two);
         assert_ne!(hash_one, hash_two);
-    }
-
-    #[test]
-    fn custom_debug() {
-        let public_key = PublicKey::from_bytes(DEFAULT_BYTES).unwrap();
-
-        let debug = format!("{:?}", public_key);
-        assert_eq!(
-            debug,
-            "PublicKey { \
-                        network: mainnet, type: ecc_compact, \
-                        address: 11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv \
-                    }"
-        );
     }
 }

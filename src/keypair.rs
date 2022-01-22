@@ -40,6 +40,8 @@ impl Keypair {
                 Self::EccCompact(ecc_compact::Keypair::generate(key_tag.network, csprng))
             }
             KeyType::Ed25519 => Self::Ed25519(ed25519::Keypair::generate(key_tag.network, csprng)),
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => panic!("not supported"),
         }
     }
 
@@ -52,6 +54,8 @@ impl Keypair {
                 key_tag.network,
                 entropy,
             )?)),
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => panic!("not supported"),
         }
     }
 
@@ -127,6 +131,8 @@ impl TryFrom<&[u8]> for Keypair {
         match KeyType::try_from(input[0])? {
             KeyType::Ed25519 => Ok(ed25519::Keypair::try_from(input)?.into()),
             KeyType::EccCompact => Ok(ecc_compact::Keypair::try_from(input)?.into()),
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => Err(Error::invalid_keytype(input[0])),
         }
     }
 }

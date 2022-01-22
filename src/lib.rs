@@ -27,6 +27,12 @@ pub mod ed25519;
 #[cfg(feature = "ecc608")]
 pub mod ecc608;
 
+#[cfg(feature = "multisig")]
+pub mod multisig;
+
+#[cfg(feature = "multisig")]
+pub use multihash;
+
 pub mod error;
 pub mod public_key;
 
@@ -63,6 +69,8 @@ impl Default for Network {
 pub enum KeyType {
     Ed25519,
     EccCompact,
+    #[cfg(feature = "multisig")]
+    MultiSig,
 }
 
 impl Copy for KeyType {}
@@ -145,6 +153,8 @@ impl FromStr for KeyType {
         match s {
             KEYTYPE_ED25519_STR => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT_STR => Ok(Self::EccCompact),
+            #[cfg(feature = "multisig")]
+            KEYTYPE_MULTISIG_STR => Ok(Self::MultiSig),
             _ => Err(Error::invalid_keytype_str(s)),
         }
     }
@@ -155,6 +165,8 @@ impl fmt::Display for KeyType {
         f.write_str(match self {
             Self::Ed25519 => KEYTYPE_ED25519_STR,
             Self::EccCompact => KEYTYPE_ECC_COMPACT_STR,
+            #[cfg(feature = "multisig")]
+            Self::MultiSig => KEYTYPE_MULTISIG_STR,
         })
     }
 }
@@ -165,6 +177,8 @@ impl TryFrom<u8> for KeyType {
         match v & 0xF {
             KEYTYPE_ED25519 => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT => Ok(Self::EccCompact),
+            #[cfg(feature = "multisig")]
+            KEYTYPE_MULTISIG => Ok(Self::MultiSig),
             _ => Err(Error::invalid_keytype(v)),
         }
     }
@@ -175,7 +189,17 @@ impl From<KeyType> for u8 {
         match v {
             KeyType::EccCompact => KEYTYPE_ECC_COMPACT,
             KeyType::Ed25519 => KEYTYPE_ED25519,
+            #[cfg(feature = "multisig")]
+            KeyType::MultiSig => KEYTYPE_MULTISIG,
         }
+    }
+}
+
+impl ReadFrom for KeyTag {
+    fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
+        let mut buf = [0u8];
+        input.read_exact(&mut buf)?;
+        Self::try_from(buf[0])
     }
 }
 
@@ -187,6 +211,10 @@ pub const KEYTYPE_ECC_COMPACT: u8 = 0x00;
 pub const KEYTYPE_ED25519_STR: &str = "ed25519";
 /// The string representation of the ecc_compact key type
 pub const KEYTYPE_ECC_COMPACT_STR: &str = "ecc_compact";
+// The type tag for encoded multisig public keys
+pub const KEYTYPE_MULTISIG: u8 = 0x02;
+/// The string representation of the multisig pblic key type
+pub const KEYTYPE_MULTISIG_STR: &str = "multisig";
 
 // The type tag for mainnet keys.
 pub const NETTYPE_MAIN: u8 = 0x00;
@@ -197,9 +225,14 @@ pub const NETTYPE_MAIN_STR: &str = "mainnet";
 /// The string representation of the testnet network type
 pub const NETTYPE_TEST_STR: &str = "testnet";
 
-/// Convert the implementor into its binary form by writing to the given output
-/// slice. The output slice is assumed to be of the right minimum size and
-/// implementors are expected to panic otherwise.
-pub(crate) trait IntoBytes {
-    fn bytes_into(&self, output: &mut [u8]);
+pub trait WriteTo {
+    /// Convert the implementor into its binary form by writing to the given output.
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()>;
+}
+
+pub trait ReadFrom {
+    /// Read the implementor from its binary form
+    fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self>
+    where
+        Self: Sized;
 }

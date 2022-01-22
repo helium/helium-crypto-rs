@@ -76,10 +76,10 @@ impl TryFrom<&[u8]> for Keypair {
     }
 }
 
-impl IntoBytes for Keypair {
-    fn bytes_into(&self, output: &mut [u8]) {
-        output[0] = u8::from(self.key_tag());
-        output[1..].copy_from_slice(&self.secret.to_bytes());
+impl WriteTo for Keypair {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
+        output.write_all(&[u8::from(self.key_tag())])?;
+        output.write_all(&self.secret.to_bytes())
     }
 }
 
@@ -116,7 +116,8 @@ impl Keypair {
 
     pub fn to_vec(&self) -> Vec<u8> {
         let mut result = vec![0u8; KEYPAIR_LENGTH];
-        self.bytes_into(&mut result);
+        self.write_to(&mut std::io::Cursor::new(&mut result))
+            .unwrap();
         result
     }
 
@@ -176,9 +177,7 @@ impl Signature {
 }
 
 impl PublicKeySize for PublicKey {
-    fn public_key_size(&self) -> usize {
-        PUBLIC_KEY_LENGTH
-    }
+    const PUBLIC_KEY_SIZE: usize = PUBLIC_KEY_LENGTH;
 }
 
 impl public_key::Verify for PublicKey {
@@ -194,13 +193,8 @@ impl TryFrom<&[u8]> for PublicKey {
 
     fn try_from(input: &[u8]) -> Result<Self> {
         if input.len() == PUBLIC_KEY_LENGTH {
-            // Assume this is a compact key we've encoded before, strip of the network/type tag
-            match p256::AffinePoint::decompact(FieldBytes::from_slice(&input[1..])).into() {
-                Some(point) => Ok(PublicKey(
-                    p256::PublicKey::from_affine(point).map_err(Error::from)?,
-                )),
-                None => Err(Error::not_compact()),
-            }
+            let mut input = std::io::Cursor::new(&input[1..]);
+            Self::read_from(&mut input)
         } else {
             // Otherwise assume it's just raw bytes
             use p256::elliptic_curve::sec1::FromEncodedPoint;
@@ -219,15 +213,28 @@ impl TryFrom<&[u8]> for PublicKey {
     }
 }
 
-impl IntoBytes for PublicKey {
-    fn bytes_into(&self, output: &mut [u8]) {
+impl ReadFrom for PublicKey {
+    fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
+        let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
+        input.read_exact(&mut buf)?;
+        match p256::AffinePoint::decompact(FieldBytes::from_slice(&buf)).into() {
+            Some(point) => Ok(PublicKey(
+                p256::PublicKey::from_affine(point).map_err(Error::from)?,
+            )),
+            None => Err(Error::not_compact()),
+        }
+    }
+}
+
+impl WriteTo for PublicKey {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
         use std::hint::unreachable_unchecked;
         let encoded = self
             .0
             .as_affine()
             .to_compact_encoded_point()
             .unwrap_or_else(|| unsafe { unreachable_unchecked() });
-        output.copy_from_slice(&encoded.as_bytes()[1..])
+        output.write_all(&encoded.as_bytes()[1..])
     }
 }
 
