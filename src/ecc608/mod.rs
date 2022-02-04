@@ -2,7 +2,10 @@ use crate::{
     ecc_compact::{self, Signature},
     keypair, public_key, Error, KeyTag, KeyType as CrateKeyType, Network, Result,
 };
-pub use ecc608_linux::{Ecc, KeyConfig, KeyType, SlotConfig, Zone, MAX_SLOT};
+pub use ecc608_linux::{
+    address, key_config, slot_config, Ecc, KeyConfig, KeyType, SlotConfig, Zone, MAX_SLOT,
+};
+
 use p256::{ecdsa, elliptic_curve};
 use std::{
     convert::{TryFrom, TryInto},
