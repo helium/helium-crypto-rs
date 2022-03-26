@@ -12,14 +12,17 @@ base64 = "0"
 signature = "*"
 serde = "1"
 rand_core = { version = "0.6", features = ["getrandom"] }
+sha2 = "0"
 ed25519-dalek = { git = "https://github.com/helium/ed25519-dalek", branch = "madninja/bump_rand" }
 p256 = { version="0.10.1", default-features=false, features=["arithmetic", "ecdsa", "sha256", "ecdh"] }
 ecc608-linux = { version = "0", optional = true}
 multihash = {version = "0", optional = true}
+helium-tpm = { git = "https://github.com/openEPC/helium-tpm.git", branch = "master", optional = true }
 
 [features]
 default = []
 ecc608 = [ "ecc608-linux" ]
+tpm = ["helium-tpm"]
 multisig = ["multihash"]
 
 [dev-dependencies]

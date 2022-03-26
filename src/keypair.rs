@@ -15,6 +15,8 @@ pub enum Keypair {
     EccCompact(ecc_compact::Keypair),
     #[cfg(feature = "ecc608")]
     Ecc608(ecc608::Keypair),
+    #[cfg(feature = "tpm")]
+    TPM(tpm::Keypair),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -26,6 +28,8 @@ impl Sign for Keypair {
             Self::EccCompact(keypair) => keypair.sign(msg),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.sign(msg),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => keypair.sign(msg),
         }
     }
 }
@@ -65,6 +69,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.key_tag(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.key_tag(),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => keypair.key_tag(),
         }
     }
 
@@ -74,6 +80,8 @@ impl Keypair {
             Self::EccCompact(keypair) => &keypair.public_key,
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => &keypair.public_key,
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => &keypair.public_key,
         }
     }
 
@@ -82,6 +90,8 @@ impl Keypair {
             Self::EccCompact(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             _ => Err(Error::invalid_curve()),
         }
     }
@@ -92,6 +102,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
+            #[cfg(feature = "tpm")]
+            Self::TPM(_) => panic!("not supported"),
         }
     }
 
@@ -101,6 +113,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.secret_to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
+            #[cfg(feature = "tpm")]
+            Self::TPM(_) => panic!("not supported"),
         }
     }
 }
@@ -121,6 +135,13 @@ impl From<ecc_compact::Keypair> for Keypair {
 impl From<ecc608::Keypair> for Keypair {
     fn from(keypair: ecc608::Keypair) -> Self {
         Self::Ecc608(keypair)
+    }
+}
+
+#[cfg(feature = "tpm")]
+impl From<tpm::Keypair> for Keypair {
+    fn from(keypair: tpm::Keypair) -> Self {
+        Self::TPM(keypair)
     }
 }
 

@@ -25,6 +25,11 @@ pub enum Error {
     #[cfg_attr(docsrs, doc(cfg(feature = "multisig")))]
     #[error("multisig error")]
     MultiSig(#[from] crate::multisig::Error),
+
+    #[cfg(feature = "tpm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "tpm")))]
+    #[error("TPM error")]
+    TPM(#[from] helium_tpm::Error),
 }
 
 #[derive(Error, Debug)]

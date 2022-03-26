@@ -27,6 +27,9 @@ pub mod ed25519;
 #[cfg(feature = "ecc608")]
 pub mod ecc608;
 
+#[cfg(feature = "tpm")]
+pub mod tpm;
+
 #[cfg(feature = "multisig")]
 pub mod multisig;
 
