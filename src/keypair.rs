@@ -11,10 +11,10 @@ pub trait Sign {
 
 #[derive(PartialEq, Debug)]
 pub enum Keypair {
-    Ed25519(ed25519::Keypair),
-    EccCompact(ecc_compact::Keypair),
+    Ed25519(Box<ed25519::Keypair>),
+    EccCompact(Box<ecc_compact::Keypair>),
     #[cfg(feature = "ecc608")]
-    Ecc608(ecc608::Keypair),
+    Ecc608(Box<ecc608::Keypair>),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -36,10 +36,8 @@ impl Keypair {
         R: rand_core::CryptoRng + rand_core::RngCore,
     {
         match key_tag.key_type {
-            KeyType::EccCompact => {
-                Self::EccCompact(ecc_compact::Keypair::generate(key_tag.network, csprng))
-            }
-            KeyType::Ed25519 => Self::Ed25519(ed25519::Keypair::generate(key_tag.network, csprng)),
+            KeyType::EccCompact => ecc_compact::Keypair::generate(key_tag.network, csprng).into(),
+            KeyType::Ed25519 => ed25519::Keypair::generate(key_tag.network, csprng).into(),
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => panic!("not supported"),
         }
@@ -47,13 +45,12 @@ impl Keypair {
 
     pub fn generate_from_entropy(key_tag: KeyTag, entropy: &[u8]) -> Result<Keypair> {
         match key_tag.key_type {
-            KeyType::EccCompact => Ok(Self::EccCompact(
-                ecc_compact::Keypair::generate_from_entropy(key_tag.network, entropy)?,
-            )),
-            KeyType::Ed25519 => Ok(Self::Ed25519(ed25519::Keypair::generate_from_entropy(
-                key_tag.network,
-                entropy,
-            )?)),
+            KeyType::EccCompact => {
+                Ok(ecc_compact::Keypair::generate_from_entropy(key_tag.network, entropy)?.into())
+            }
+            KeyType::Ed25519 => {
+                Ok(ed25519::Keypair::generate_from_entropy(key_tag.network, entropy)?.into())
+            }
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => panic!("not supported"),
         }
@@ -107,20 +104,20 @@ impl Keypair {
 
 impl From<ed25519::Keypair> for Keypair {
     fn from(keypair: ed25519::Keypair) -> Self {
-        Self::Ed25519(keypair)
+        Self::Ed25519(Box::new(keypair))
     }
 }
 
 impl From<ecc_compact::Keypair> for Keypair {
     fn from(keypair: ecc_compact::Keypair) -> Self {
-        Self::EccCompact(keypair)
+        Self::EccCompact(Box::new(keypair))
     }
 }
 
 #[cfg(feature = "ecc608")]
 impl From<ecc608::Keypair> for Keypair {
     fn from(keypair: ecc608::Keypair) -> Self {
-        Self::Ecc608(keypair)
+        Self::Ecc608(Box::new(keypair))
     }
 }
 

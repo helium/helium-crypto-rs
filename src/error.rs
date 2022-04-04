@@ -7,6 +7,8 @@ pub enum Error {
     Decode(#[from] DecodeError),
     #[error("elliptic_curve error")]
     EccCompact(p256::elliptic_curve::Error),
+    #[error("ed25519 error")]
+    Ed25519(#[from] ed25519_consensus::Error),
     #[error("signature error")]
     Signature(#[from] signature::Error),
     #[error("invalid curve error")]
