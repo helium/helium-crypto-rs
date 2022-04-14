@@ -1,4 +1,5 @@
 use thiserror::Error;
+
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
@@ -29,7 +30,7 @@ pub enum Error {
     #[cfg(feature = "tpm")]
     #[cfg_attr(docsrs, doc(cfg(feature = "tpm")))]
     #[error("TPM error")]
-    TPM(#[from] helium_tpm::Error),
+    TPM(#[from] crate::tpm::Error),
 }
 
 #[derive(Error, Debug)]

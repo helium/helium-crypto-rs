@@ -1,19 +1,36 @@
+mod tpm_wrapper;
+
 use std::{
     convert::{TryFrom, TryInto},
     sync::Once,
 };
-
+use thiserror::Error;
 use p256::{ecdsa};
+use p256::elliptic_curve::sec1::FromEncodedPoint;
 use sha2::{Digest, Sha256};
 
-use crate::{keypair, KeyTag, Network, public_key, Result, KeyType as CrateKeyType, error};
+use crate::{keypair, KeyTag, Network, public_key, Result, KeyType as CrateKeyType,
+            error, ecc_compact, ecc_compact::Signature};
 
-use helium_tpm::{sign, ecdh, tpm_init, tpm_deinit, public_key, Error};
-use p256::elliptic_curve::sec1::FromEncodedPoint;
 
-use crate::{
-    ecc_compact, ecc_compact::Signature,
-};
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("function {0} returned error code {1}")]
+    TPMError(String, u32),
+
+    #[error("wrong key path")]
+    WrongKeyPath,
+}
+
+impl Error {
+    pub fn tpm_error(func: String, code: u32) -> crate::Error {
+        Self::TPMError(func, code).into()
+    }
+
+    pub fn wrong_key_path() -> crate::Error {
+        Self::WrongKeyPath.into()
+    }
+}
 
 
 static INIT: Once = Once::new();
@@ -49,7 +66,7 @@ impl keypair::Sign for Keypair {
 
 impl Drop for Keypair {
     fn drop(&mut self) {
-        helium_tpm::tpm_deinit();
+        tpm_wrapper::tpm_deinit();
     }
 }
 
@@ -58,8 +75,7 @@ pub fn init() -> Result {
         return Ok(());
     }
 
-    helium_tpm::tpm_init()?;
-
+    tpm_wrapper::tpm_init()?;
     Ok(())
 }
 
@@ -77,7 +93,7 @@ impl Keypair {
     }
 
     fn public_key(key_path: &String) -> Result<Vec<u8>> {
-        let res = helium_tpm::public_key(key_path)?;
+        let res = tpm_wrapper::public_key(key_path)?;
         return Ok(res);
     }
 
@@ -95,10 +111,12 @@ impl Keypair {
         use p256::elliptic_curve::sec1::ToEncodedPoint;
         let key = public_key.try_into()?;
         let point = key.0.to_encoded_point(false);
+        let x = point.x().unwrap().as_slice();
+        let y = point.y().unwrap().as_slice();
         let path = &self.path;
 
         let mut shared_secret_bytes = vec![4u8];
-        shared_secret_bytes.extend_from_slice(helium_tpm::ecdh(point, path)?.as_slice());
+        shared_secret_bytes.extend_from_slice(tpm_wrapper::ecdh(x, y, path)?.as_slice());
 
         let encoded_point = p256::EncodedPoint::from_bytes(shared_secret_bytes.as_slice()).map_err(p256::elliptic_curve::Error::from)?;
         let affine_point = p256::AffinePoint::from_encoded_point(&encoded_point).unwrap();
@@ -109,7 +127,7 @@ impl Keypair {
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         let digest = Sha256::digest(msg).to_vec();
-        let sign_slice = helium_tpm::sign(&self.path, digest).map_err(|e| signature::Error::from_source(e))?;
+        let sign_slice = tpm_wrapper::sign(&self.path, digest).map_err(|e| signature::Error::from_source(e))?;
 
         let signature = ecdsa::Signature::from_der(&sign_slice[..])?;
         Ok(Signature(signature))
