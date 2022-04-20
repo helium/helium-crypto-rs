@@ -4,7 +4,6 @@ use std::{
     convert::{TryFrom, TryInto},
     sync::Once,
 };
-use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use p256::{ecdsa};
 use p256::elliptic_curve::sec1::FromEncodedPoint;
@@ -35,7 +34,7 @@ impl Error {
 
 
 static INIT: Once = Once::new();
-static mut COUNTER: Option<Arc<Mutex<i32>>> = None;
+static mut COUNTER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
 pub struct Keypair {
     pub network: Network,
@@ -69,11 +68,9 @@ impl keypair::Sign for Keypair {
 impl Drop for Keypair {
     fn drop(&mut self) {
         unsafe {
-            let mut num = COUNTER.as_ref().unwrap().lock().unwrap();
-            *num -= 1;
-            if *num == 0 {
+            COUNTER.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            if *COUNTER.get_mut() == 0 {
                 tpm_wrapper::tpm_deinit();
-                COUNTER = None;
             }
         }
     }
@@ -82,40 +79,36 @@ impl Drop for Keypair {
 pub fn init() -> Result {
     if INIT.is_completed() {
         unsafe {
-            let mut num = COUNTER.as_ref().unwrap().lock().unwrap();
-            *num += 1;
+            COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
         return Ok(());
     }
 
-
     let mut res: Result = Ok(());
     INIT.call_once(|| {
         res = tpm_wrapper::tpm_init().map_err(|e| error::Error::from(e));
-        unsafe { COUNTER = Some(Arc::new(Mutex::new(0)));}
     });
 
     unsafe {
-        let mut num = COUNTER.as_ref().unwrap().lock().unwrap();
-        *num += 1;
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
     return res;
 }
 
 impl Keypair {
-    pub fn from_key_path(network: Network, key_path: String) -> Result<Keypair> {
-        let bytes: Vec<u8> = Self::public_key(&key_path)?;
+    pub fn from_key_path(network: Network, key_path: &str) -> Result<Keypair> {
+        let bytes: Vec<u8> = Self::public_key(key_path)?;
         let mut key_bytes = vec![4u8];
         key_bytes.extend_from_slice(bytes.as_slice());
         let public_key = ecc_compact::PublicKey::try_from(key_bytes.as_ref())?;
         Ok(Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, public_key),
-            path: key_path
+            path: key_path.to_string(),
         })
     }
 
-    fn public_key(key_path: &String) -> Result<Vec<u8>> {
+    fn public_key(key_path: &str) -> Result<Vec<u8>> {
         let res = tpm_wrapper::public_key(key_path)?;
         return Ok(res);
     }

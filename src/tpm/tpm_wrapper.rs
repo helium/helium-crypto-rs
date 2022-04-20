@@ -36,7 +36,7 @@ fn with_tpm<F, R>(f: F) -> R
 
 pub fn tpm_init() -> Result {
     unsafe {
-        let mut tpm_ctx: *mut FAPI_CONTEXT = MaybeUninit::uninit().assume_init();
+        let mut tpm_ctx: *mut FAPI_CONTEXT = null_mut();
         let res = Fapi_Initialize(&mut tpm_ctx as *mut *mut FAPI_CONTEXT, null_mut());
         if res != TSS2_RC_SUCCESS {
             return Err(TpmError::tpm_error(String::from("Fapi_Initialize"), res));
@@ -71,7 +71,7 @@ fn free_esys_resources (esys_ctx: &mut *mut ESYS_CONTEXT, esys_key_handle: ESYS_
     Ok(())
 }
 
-pub fn public_key(key_path: &String) -> Result<Vec<u8>> {
+pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
     unsafe {
         let tpm_ctx = tpm().lock().unwrap();
         let mut esys_key_handle: ESYS_TR = u32::MAX;
