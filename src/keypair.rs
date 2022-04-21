@@ -253,8 +253,8 @@ mod tests {
     #[test]
     fn sign_tpm() {
         let keypair = tpm::init()
-            .and_then(|_|
-                tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey")).unwrap();
+            .and_then(|_| tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey"))
+            .unwrap();
 
         sign_test_keypair(&Keypair::TPM(keypair));
     }
@@ -271,8 +271,8 @@ mod tests {
     #[test]
     fn ecdh_tpm() {
         let keypair = tpm::init()
-            .and_then(|_|
-                tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey")).unwrap();
+            .and_then(|_| tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey"))
+            .unwrap();
 
         ecdh_test_keypair(&Keypair::TPM(keypair));
     }

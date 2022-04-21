@@ -1,29 +1,31 @@
 mod tpm_wrapper;
 
-use std::{
-    convert::{TryFrom, TryInto},
-    sync::Once,
-};
-use thiserror::Error;
-use p256::{ecdsa};
+use p256::ecdsa;
 use p256::elliptic_curve::sec1::FromEncodedPoint;
 use sha2::{Digest, Sha256};
+use std::convert::{TryFrom, TryInto};
+use std::sync::{
+    atomic::{AtomicI32, Ordering::SeqCst},
+    Once,
+};
+use thiserror::Error;
 
-use crate::{keypair, KeyTag, Network, public_key, Result, KeyType as CrateKeyType,
-            error, ecc_compact, ecc_compact::Signature};
-
+use crate::{
+    ecc_compact, ecc_compact::Signature, error, keypair, public_key, KeyTag,
+    KeyType as CrateKeyType, Network, Result,
+};
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("function {0} returned error code {1}")]
-    TPMError(String, u32),
+    TPMError(&'static str, u32),
 
     #[error("wrong key path")]
     WrongKeyPath,
 }
 
 impl Error {
-    pub fn tpm_error(func: String, code: u32) -> crate::Error {
+    pub fn tpm_error(func: &'static str, code: u32) -> crate::Error {
         Self::TPMError(func, code).into()
     }
 
@@ -32,9 +34,8 @@ impl Error {
     }
 }
 
-
 static INIT: Once = Once::new();
-static mut COUNTER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static COUNTER: AtomicI32 = AtomicI32::new(0);
 
 pub struct Keypair {
     pub network: Network,
@@ -67,20 +68,15 @@ impl keypair::Sign for Keypair {
 
 impl Drop for Keypair {
     fn drop(&mut self) {
-        unsafe {
-            COUNTER.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-            if *COUNTER.get_mut() == 0 {
-                tpm_wrapper::tpm_deinit();
-            }
+        if COUNTER.fetch_sub(1, SeqCst) == 1 {
+            tpm_wrapper::tpm_deinit();
         }
     }
 }
 
 pub fn init() -> Result {
     if INIT.is_completed() {
-        unsafe {
-            COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        }
+        COUNTER.fetch_add(1, SeqCst);
         return Ok(());
     }
 
@@ -89,9 +85,7 @@ pub fn init() -> Result {
         res = tpm_wrapper::tpm_init().map_err(|e| error::Error::from(e));
     });
 
-    unsafe {
-        COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    }
+    COUNTER.fetch_add(1, SeqCst);
     return res;
 }
 
@@ -121,8 +115,8 @@ impl Keypair {
     }
 
     pub fn ecdh<'a, C>(&self, public_key: C) -> Result<ecc_compact::SharedSecret>
-        where
-            C: TryInto<&'a ecc_compact::PublicKey, Error = error::Error>,
+    where
+        C: TryInto<&'a ecc_compact::PublicKey, Error = error::Error>,
     {
         use p256::elliptic_curve::sec1::ToEncodedPoint;
         let key = public_key.try_into()?;
@@ -134,16 +128,20 @@ impl Keypair {
         let mut shared_secret_bytes = vec![4u8];
         shared_secret_bytes.extend_from_slice(tpm_wrapper::ecdh(x, y, path)?.as_slice());
 
-        let encoded_point = p256::EncodedPoint::from_bytes(shared_secret_bytes.as_slice()).map_err(p256::elliptic_curve::Error::from)?;
+        let encoded_point = p256::EncodedPoint::from_bytes(shared_secret_bytes.as_slice())
+            .map_err(p256::elliptic_curve::Error::from)?;
         let affine_point = p256::AffinePoint::from_encoded_point(&encoded_point).unwrap();
-        Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(&affine_point)))
+        Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(
+            &affine_point,
+        )))
     }
 }
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         let digest = Sha256::digest(msg).to_vec();
-        let sign_slice = tpm_wrapper::sign(&self.path, digest).map_err(|e| signature::Error::from_source(e))?;
+        let sign_slice =
+            tpm_wrapper::sign(&self.path, digest).map_err(|e| signature::Error::from_source(e))?;
 
         let signature = ecdsa::Signature::from_der(&sign_slice[..])?;
         Ok(Signature(signature))
