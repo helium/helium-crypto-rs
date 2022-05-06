@@ -82,11 +82,11 @@ pub fn init() -> Result {
 
     let mut res: Result = Ok(());
     INIT.call_once(|| {
-        res = tpm_wrapper::tpm_init().map_err(|e| error::Error::from(e));
+        res = tpm_wrapper::tpm_init();
     });
 
     COUNTER.fetch_add(1, SeqCst);
-    return res;
+    res
 }
 
 impl Keypair {
@@ -104,7 +104,7 @@ impl Keypair {
 
     fn public_key(key_path: &str) -> Result<Vec<u8>> {
         let res = tpm_wrapper::public_key(key_path)?;
-        return Ok(res);
+        Ok(res)
     }
 
     pub fn key_tag(&self) -> KeyTag {
@@ -141,7 +141,7 @@ impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         let digest = Sha256::digest(msg).to_vec();
         let sign_slice =
-            tpm_wrapper::sign(&self.path, digest).map_err(|e| signature::Error::from_source(e))?;
+            tpm_wrapper::sign(&self.path, digest).map_err(signature::Error::from_source)?;
 
         let signature = ecdsa::Signature::from_der(&sign_slice[..])?;
         Ok(Signature(signature))

@@ -13,7 +13,7 @@ use tss2::{
     Esys_ReadPublic, Fapi_Finalize, Fapi_GetEsysBlob, Fapi_GetTcti, Fapi_Initialize, Fapi_Sign,
     Tss2_MU_TPMS_CONTEXT_Unmarshal, ESYS_CONTEXT, ESYS_TR, ESYS_TR_NONE, ESYS_TR_PASSWORD,
     FAPI_CONTEXT, FAPI_ESYSBLOB_CONTEXTLOAD, TPM2B_ECC_POINT, TPM2B_NAME, TPM2B_PUBLIC,
-    TPMS_CONTEXT, TSS2_RC, TSS2_RC_SUCCESS, TSS2_TCTI_CONTEXT, UINT16,
+    TPMS_CONTEXT, TSS2_RC_SUCCESS, TSS2_TCTI_CONTEXT, UINT16,
 };
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
@@ -77,9 +77,10 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
         let mut esys_blob: *mut u8 = null_mut();
         let mut blob_sz: tss2::size_t = 0;
         let mut offset: tss2::size_t = 0;
+        let c_path = CString::new(key_path.as_bytes()).unwrap();
         let mut result = Fapi_GetEsysBlob(
             *tpm_ctx,
-            CString::new(key_path.as_bytes()).unwrap().as_ptr(),
+            c_path.as_ptr(),
             &mut blob_type as *mut u8,
             &mut esys_blob as *mut *mut u8,
             &mut blob_sz as *mut tss2::size_t,
@@ -91,12 +92,12 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
             return Err(TpmError::wrong_key_path());
         }
 
-        let mut key_context: TPMS_CONTEXT = MaybeUninit::uninit().assume_init();
+        let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
         result = Tss2_MU_TPMS_CONTEXT_Unmarshal(
             esys_blob,
             blob_sz,
             &mut offset as *mut tss2::size_t,
-            &mut key_context as *mut TPMS_CONTEXT,
+            key_context.as_mut_ptr(),
         );
         libc::free(esys_blob as *mut c_void);
 
@@ -126,7 +127,7 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
 
         result = Esys_ContextLoad(
             esys_ctx,
-            &mut key_context as *mut TPMS_CONTEXT,
+            key_context.as_ptr(),
             &mut esys_key_handle as *mut ESYS_TR,
         );
         if result != TSS2_RC_SUCCESS {
@@ -167,19 +168,19 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
     }
 }
 
-pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
+pub fn ecdh(x: &[u8], y: &[u8], key_path: &str) -> Result<Vec<u8>> {
     unsafe {
         let tpm_ctx = tpm().lock().unwrap();
-        let mut result: TSS2_RC;
         let mut esys_key_handle: ESYS_TR = u32::MAX;
         let mut blob_type: u8 = 0;
         let mut esys_blob: *mut u8 = null_mut();
         let mut blob_sz: tss2::size_t = 0;
         let mut offset: tss2::size_t = 0;
+        let c_path = CString::new(key_path.as_bytes()).unwrap();
 
-        result = Fapi_GetEsysBlob(
+        let mut result = Fapi_GetEsysBlob(
             *tpm_ctx,
-            CString::new(path.as_bytes()).unwrap().as_ptr(),
+            c_path.as_ptr(),
             &mut blob_type as *mut u8,
             &mut esys_blob as *mut *mut u8,
             &mut blob_sz as *mut tss2::size_t,
@@ -193,12 +194,12 @@ pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
             return Err(TpmError::wrong_key_path());
         }
 
-        let mut key_context: TPMS_CONTEXT = MaybeUninit::uninit().assume_init();
+        let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
         result = Tss2_MU_TPMS_CONTEXT_Unmarshal(
             esys_blob,
             blob_sz,
             &mut offset as *mut tss2::size_t,
-            &mut key_context as *mut TPMS_CONTEXT,
+            key_context.as_mut_ptr(),
         );
         libc::free(esys_blob as *mut c_void);
         if result != TSS2_RC_SUCCESS {
@@ -227,7 +228,7 @@ pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
 
         result = Esys_ContextLoad(
             esys_ctx,
-            &mut key_context as *mut TPMS_CONTEXT,
+            key_context.as_ptr(),
             &mut esys_key_handle as *mut ESYS_TR,
         );
         if result != TSS2_RC_SUCCESS {
@@ -236,15 +237,16 @@ pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
         }
 
         let mut secret: *mut TPM2B_ECC_POINT = null_mut();
-        let mut pub_point: TPM2B_ECC_POINT = MaybeUninit::uninit().assume_init();
+        let mut pub_point: MaybeUninit<TPM2B_ECC_POINT> = MaybeUninit::uninit();
         let x_len = x.len();
-        pub_point.point.x.size = x_len as UINT16;
-        pub_point.point.x.buffer[..x_len].copy_from_slice(x);
+        let mut mut_point = *pub_point.as_mut_ptr();
+        mut_point.point.x.size = x_len as UINT16;
+        mut_point.point.x.buffer[..x_len].copy_from_slice(x);
 
         let y_len = y.len();
-        pub_point.point.y.size = y_len as UINT16;
-        pub_point.point.y.buffer[..y_len].copy_from_slice(y);
-        pub_point.size = pub_point.point.x.size + pub_point.point.y.size;
+        mut_point.point.y.size = y_len as UINT16;
+        mut_point.point.y.buffer[..y_len].copy_from_slice(y);
+        mut_point.size = mut_point.point.x.size + mut_point.point.y.size;
 
         result = Esys_ECDH_ZGen(
             esys_ctx,
@@ -252,7 +254,7 @@ pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
             ESYS_TR_PASSWORD,
             ESYS_TR_NONE,
             ESYS_TR_NONE,
-            &mut pub_point as *mut TPM2B_ECC_POINT,
+            pub_point.as_ptr(),
             &mut secret as *mut *mut TPM2B_ECC_POINT,
         );
 
@@ -271,20 +273,21 @@ pub fn ecdh(x: &[u8], y: &[u8], path: &String) -> Result<Vec<u8>> {
             &(*secret).point.y.buffer.as_slice()[..(*secret).point.y.size as usize],
         );
 
-        return Ok(shared_secret_bytes);
+        Ok(shared_secret_bytes)
     }
 }
 
-pub fn sign(path: &String, digest: Vec<u8>) -> Result<Vec<u8>> {
+pub fn sign(key_path: &str, digest: Vec<u8>) -> Result<Vec<u8>> {
     unsafe {
         let mut raw_signature: *mut u8 = null_mut();
         let mut signature_sz: tss2::size_t = 0;
         let mut public_key: *mut c_char = null_mut();
         let mut certificate: *mut c_char = null_mut();
+        let c_path = CString::new(key_path.as_bytes()).unwrap();
         let result = with_tpm(|tpm_ctx| {
             Fapi_Sign(
                 tpm_ctx,
-                CString::new(path.as_bytes()).unwrap().as_ptr(),
+                c_path.as_ptr(),
                 null_mut(),
                 digest.as_ptr(),
                 digest.len() as tss2::size_t,
@@ -305,6 +308,6 @@ pub fn sign(path: &String, digest: Vec<u8>) -> Result<Vec<u8>> {
         let sign_slice = std::slice::from_raw_parts(raw_signature, signature_sz as usize).to_vec();
         libc::free(raw_signature as *mut c_void);
 
-        return Ok(sign_slice);
+        Ok(sign_slice)
     }
 }
