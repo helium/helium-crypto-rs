@@ -1,4 +1,5 @@
 use thiserror::Error;
+
 pub type Result<T = ()> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
@@ -25,6 +26,11 @@ pub enum Error {
     #[cfg_attr(docsrs, doc(cfg(feature = "multisig")))]
     #[error("multisig error")]
     MultiSig(#[from] crate::multisig::Error),
+
+    #[cfg(feature = "tpm")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "tpm")))]
+    #[error("TPM error")]
+    TPM(#[from] crate::tpm::Error),
 }
 
 #[derive(Error, Debug)]

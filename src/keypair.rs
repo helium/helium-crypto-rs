@@ -15,6 +15,8 @@ pub enum Keypair {
     EccCompact(ecc_compact::Keypair),
     #[cfg(feature = "ecc608")]
     Ecc608(ecc608::Keypair),
+    #[cfg(feature = "tpm")]
+    TPM(tpm::Keypair),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -26,6 +28,8 @@ impl Sign for Keypair {
             Self::EccCompact(keypair) => keypair.sign(msg),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.sign(msg),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => keypair.sign(msg),
         }
     }
 }
@@ -65,6 +69,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.key_tag(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.key_tag(),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => keypair.key_tag(),
         }
     }
 
@@ -74,6 +80,8 @@ impl Keypair {
             Self::EccCompact(keypair) => &keypair.public_key,
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => &keypair.public_key,
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => &keypair.public_key,
         }
     }
 
@@ -82,6 +90,8 @@ impl Keypair {
             Self::EccCompact(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
+            #[cfg(feature = "tpm")]
+            Self::TPM(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             _ => Err(Error::invalid_curve()),
         }
     }
@@ -92,6 +102,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
+            #[cfg(feature = "tpm")]
+            Self::TPM(_) => panic!("not supported"),
         }
     }
 
@@ -101,6 +113,8 @@ impl Keypair {
             Self::EccCompact(keypair) => keypair.secret_to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
+            #[cfg(feature = "tpm")]
+            Self::TPM(_) => panic!("not supported"),
         }
     }
 }
@@ -121,6 +135,13 @@ impl From<ecc_compact::Keypair> for Keypair {
 impl From<ecc608::Keypair> for Keypair {
     fn from(keypair: ecc608::Keypair) -> Self {
         Self::Ecc608(keypair)
+    }
+}
+
+#[cfg(feature = "tpm")]
+impl From<tpm::Keypair> for Keypair {
+    fn from(keypair: tpm::Keypair) -> Self {
+        Self::TPM(keypair)
     }
 }
 
@@ -159,23 +180,31 @@ mod tests {
         assert_eq!(keypair.key_tag(), key_tag);
     }
 
-    fn sign_test(key_tag: KeyTag) {
+    fn sign_test_tag(key_tag: KeyTag) {
         let keypair = Keypair::generate(key_tag, &mut OsRng);
-        let signature = keypair.sign(b"hello world").expect("signature");
-        assert!(keypair
+        sign_test_keypair(&keypair);
+    }
+
+    fn sign_test_keypair(key_pair: &Keypair) {
+        let signature = key_pair.sign(b"hello world").expect("signature");
+        assert!(key_pair
             .public_key()
             .verify(b"hello world", &signature)
             .is_ok())
     }
 
-    fn ecdh_test(key_tag: KeyTag) {
+    fn ecdh_test_tag(key_tag: KeyTag) {
         let keypair = Keypair::generate(key_tag, &mut OsRng);
-        let other = Keypair::generate(key_tag, &mut OsRng);
-        let keypair_shared = keypair
+        ecdh_test_keypair(&keypair);
+    }
+
+    fn ecdh_test_keypair(key_pair: &Keypair) {
+        let other = Keypair::generate(key_pair.key_tag(), &mut OsRng);
+        let keypair_shared = key_pair
             .ecdh(other.public_key())
             .expect("keypair shared secret");
         let other_shared = other
-            .ecdh(keypair.public_key())
+            .ecdh(key_pair.public_key())
             .expect("other shared secret");
         assert_eq!(keypair_shared.as_bytes(), other_shared.as_bytes());
     }
@@ -206,7 +235,7 @@ mod tests {
 
     #[test]
     fn sign_ed25519() {
-        sign_test(KeyTag {
+        sign_test_tag(KeyTag {
             network: Network::MainNet,
             key_type: KeyType::Ed25519,
         });
@@ -214,17 +243,37 @@ mod tests {
 
     #[test]
     fn sign_ecc_compact() {
-        sign_test(KeyTag {
+        sign_test_tag(KeyTag {
             network: Network::MainNet,
             key_type: KeyType::EccCompact,
         });
     }
 
+    #[cfg(feature = "tpm")]
+    #[test]
+    fn sign_tpm() {
+        let keypair = tpm::init()
+            .and_then(|_| tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey"))
+            .unwrap();
+
+        sign_test_keypair(&Keypair::TPM(keypair));
+    }
+
     #[test]
     fn ecdh_ecc_compact() {
-        ecdh_test(KeyTag {
+        ecdh_test_tag(KeyTag {
             network: Network::MainNet,
             key_type: KeyType::EccCompact,
         });
+    }
+
+    #[cfg(feature = "tpm")]
+    #[test]
+    fn ecdh_tpm() {
+        let keypair = tpm::init()
+            .and_then(|_| tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey"))
+            .unwrap();
+
+        ecdh_test_keypair(&Keypair::TPM(keypair));
     }
 }
