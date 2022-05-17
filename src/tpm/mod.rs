@@ -1,52 +1,28 @@
 mod tpm_wrapper;
 
-use p256::ecdsa;
-use p256::elliptic_curve::sec1::FromEncodedPoint;
-use sha2::{Digest, Sha256};
-use std::convert::{TryFrom, TryInto};
-use std::sync::{
-    atomic::{AtomicI32, Ordering::SeqCst},
-    Once,
-};
-use thiserror::Error;
-
 use crate::{
     ecc_compact, ecc_compact::Signature, error, keypair, public_key, KeyTag,
     KeyType as CrateKeyType, Network, Result,
 };
+use p256::{ecdsa, elliptic_curve::sec1::FromEncodedPoint};
+use sha2::{Digest, Sha256};
+use std::convert::{TryFrom, TryInto};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("function {0} returned error code {1}")]
     TPMError(&'static str, u32),
 
-    #[error("wrong key path")]
-    WrongKeyPath,
+    #[error("bad key path {0}")]
+    BadKeyPath(String),
 }
 
-impl Error {
-    pub fn tpm_error(func: &'static str, code: u32) -> crate::Error {
-        Self::TPMError(func, code).into()
-    }
-
-    pub fn wrong_key_path() -> crate::Error {
-        Self::WrongKeyPath.into()
-    }
-}
-
-static INIT: Once = Once::new();
-static COUNTER: AtomicI32 = AtomicI32::new(0);
-
+#[derive(PartialEq)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,
     pub path: String,
-}
-
-impl PartialEq<Self> for Keypair {
-    fn eq(&self, other: &Self) -> bool {
-        self.public_key == other.public_key && self.path == other.path
-    }
 }
 
 impl std::fmt::Debug for Keypair {
@@ -66,34 +42,14 @@ impl keypair::Sign for Keypair {
     }
 }
 
-impl Drop for Keypair {
-    fn drop(&mut self) {
-        if COUNTER.fetch_sub(1, SeqCst) == 1 {
-            tpm_wrapper::tpm_deinit();
-        }
-    }
-}
-
-pub fn init() -> Result {
-    if INIT.is_completed() {
-        COUNTER.fetch_add(1, SeqCst);
-        return Ok(());
-    }
-
-    let mut res: Result = Ok(());
-    INIT.call_once(|| {
-        res = tpm_wrapper::tpm_init();
-    });
-
-    COUNTER.fetch_add(1, SeqCst);
-    res
-}
-
 impl Keypair {
     pub fn from_key_path(network: Network, key_path: &str) -> Result<Keypair> {
-        let bytes: Vec<u8> = Self::public_key(key_path)?;
-        let mut key_bytes = vec![4u8];
-        key_bytes.extend_from_slice(bytes.as_slice());
+        let key_bytes = {
+            let mut key_bytes: Vec<u8> = Self::public_key(key_path)?;
+            key_bytes.push(4);
+            key_bytes.rotate_right(1);
+            key_bytes
+        };
         let public_key = ecc_compact::PublicKey::try_from(key_bytes.as_ref())?;
         Ok(Keypair {
             network,
@@ -139,9 +95,9 @@ impl Keypair {
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        let digest = Sha256::digest(msg).to_vec();
+        let digest = Sha256::digest(msg);
         let sign_slice =
-            tpm_wrapper::sign(&self.path, digest).map_err(signature::Error::from_source)?;
+            tpm_wrapper::sign(&self.path, &digest).map_err(signature::Error::from_source)?;
 
         let signature = ecdsa::Signature::from_der(&sign_slice[..])?;
         Ok(Signature(signature))

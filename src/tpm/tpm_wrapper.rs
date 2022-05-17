@@ -1,168 +1,142 @@
-use libc::c_void;
-use std::ffi::CString;
-use std::mem::MaybeUninit;
-use std::os::raw::c_char;
-use std::ptr::null_mut;
-use std::sync::Mutex;
-
 use crate::{error, tpm};
+use drop_guard::guard;
+use lazy_static::lazy_static;
+use libc::c_void;
+use std::{ffi::CString, mem::MaybeUninit, ptr::null_mut, ptr::NonNull, sync::Mutex};
 use tpm::Error as TpmError;
-
 use tss2::{
-    Esys_ContextLoad, Esys_ECDH_ZGen, Esys_Finalize, Esys_FlushContext, Esys_Initialize,
+    Esys_ContextLoad, Esys_ECDH_ZGen, Esys_Finalize, Esys_FlushContext, Esys_Free, Esys_Initialize,
     Esys_ReadPublic, Fapi_Finalize, Fapi_GetEsysBlob, Fapi_GetTcti, Fapi_Initialize, Fapi_Sign,
     Tss2_MU_TPMS_CONTEXT_Unmarshal, ESYS_CONTEXT, ESYS_TR, ESYS_TR_NONE, ESYS_TR_PASSWORD,
-    FAPI_CONTEXT, FAPI_ESYSBLOB_CONTEXTLOAD, TPM2B_ECC_POINT, TPM2B_NAME, TPM2B_PUBLIC,
-    TPMS_CONTEXT, TSS2_RC_SUCCESS, TSS2_TCTI_CONTEXT, UINT16,
+    FAPI_CONTEXT, FAPI_ESYSBLOB_CONTEXTLOAD, TPM2B_ECC_POINT, TPM2B_PUBLIC, TPMS_CONTEXT,
+    TSS2_RC_SUCCESS, TSS2_TCTI_CONTEXT,
 };
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
 
-static mut TPM_CTX: Option<Mutex<*mut FAPI_CONTEXT>> = None;
-
-fn tpm<'a>() -> &'a Mutex<*mut FAPI_CONTEXT> {
-    unsafe { TPM_CTX.as_ref().unwrap() }
+// A wrapper which wraps TSS2 APIs and handles converting the return
+// code from an integer to a `Result`.
+macro_rules! tss2_call{
+    ( $func:ident ( $( $arg:expr ),* $(,)? ) ) => {{
+        match $func($($arg),*) {
+            TSS2_RC_SUCCESS => Ok(()),
+            e => Err(TpmError::TPMError(stringify!($func), e)),
+        }
+    }};
 }
 
-fn with_tpm<F, R>(f: F) -> R
-where
-    F: FnOnce(*mut FAPI_CONTEXT) -> R,
-{
-    let tpm_ctx = tpm().lock().unwrap();
-    f(*tpm_ctx)
-}
+/// An RAII wrapper for FAPI_CONTEXT.
+struct FapiContext(NonNull<FAPI_CONTEXT>);
 
-pub fn tpm_init() -> Result {
-    unsafe {
+impl FapiContext {
+    pub fn new() -> Result<Self> {
         let mut tpm_ctx: *mut FAPI_CONTEXT = null_mut();
-        let res = Fapi_Initialize(&mut tpm_ctx as *mut *mut FAPI_CONTEXT, null_mut());
-        if res != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_Initialize", res));
-        }
-
-        TPM_CTX = Some(Mutex::new(tpm_ctx));
+        unsafe {
+            tss2_call!(Fapi_Initialize(
+                &mut tpm_ctx as *mut *mut FAPI_CONTEXT,
+                null_mut(),
+            ))?;
+        };
+        Ok(Self(NonNull::new(tpm_ctx).expect("ptr is null")))
     }
 
-    Ok(())
-}
-
-pub fn tpm_deinit() {
-    unsafe {
-        let mut tpm_ctx = *tpm().lock().unwrap();
-        Fapi_Finalize(&mut tpm_ctx);
-        TPM_CTX = None;
+    pub unsafe fn as_mut(&mut self) -> *mut FAPI_CONTEXT {
+        self.0.as_mut()
     }
 }
 
-fn free_esys_resources(esys_ctx: &mut *mut ESYS_CONTEXT, esys_key_handle: ESYS_TR) -> Result {
-    unsafe {
-        if esys_key_handle != u32::MAX {
-            let res = Esys_FlushContext(*esys_ctx, esys_key_handle);
-            if res != TSS2_RC_SUCCESS {
-                return Err(TpmError::tpm_error("Esys_FlushContext", res));
-            }
+unsafe impl Send for FapiContext {}
+
+impl Drop for FapiContext {
+    fn drop(&mut self) {
+        unsafe {
+            Fapi_Finalize(&mut self.as_mut());
         }
-
-        Esys_Finalize(&mut *esys_ctx);
     }
+}
 
-    Ok(())
+lazy_static! {
+    // TODO: figure out an ergonomic way to not panic when
+    //       `FapiContext::new()` errors.
+    static ref TPM_CTX: Mutex<FapiContext> = Mutex::new(FapiContext::new().unwrap());
 }
 
 pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
     unsafe {
-        let tpm_ctx = tpm().lock().unwrap();
+        let mut tpm_ctx = TPM_CTX.lock().unwrap();
         let mut esys_key_handle: ESYS_TR = u32::MAX;
         let mut blob_type: u8 = 0;
         let mut esys_blob: *mut u8 = null_mut();
         let mut blob_sz: tss2::size_t = 0;
         let mut offset: tss2::size_t = 0;
-        let c_path = CString::new(key_path.as_bytes()).unwrap();
-        let mut result = Fapi_GetEsysBlob(
-            *tpm_ctx,
+        let c_path = CString::new(key_path.as_bytes())
+            .map_err(|_| TpmError::BadKeyPath(key_path.to_owned()))?;
+
+        tss2_call!(Fapi_GetEsysBlob(
+            tpm_ctx.as_mut(),
             c_path.as_ptr(),
             &mut blob_type as *mut u8,
             &mut esys_blob as *mut *mut u8,
             &mut blob_sz as *mut tss2::size_t,
-        );
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_GetEsysBlob", result));
-        }
+        ))?;
+        let esys_blob = guard(esys_blob, |p| Esys_Free(p as *mut c_void));
+
         if blob_type != FAPI_ESYSBLOB_CONTEXTLOAD as u8 {
-            return Err(TpmError::wrong_key_path());
+            return Err(TpmError::BadKeyPath(key_path.into()).into());
         }
 
         let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
-        result = Tss2_MU_TPMS_CONTEXT_Unmarshal(
-            esys_blob,
+        tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
+            *esys_blob,
             blob_sz,
             &mut offset as *mut tss2::size_t,
             key_context.as_mut_ptr(),
-        );
-        libc::free(esys_blob as *mut c_void);
-
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error(
-                "Tss2_MU_TPMS_CONTEXT_Unmarshal",
-                result,
-            ));
-        }
+        ))?;
+        let key_context = key_context.assume_init();
 
         let mut tcti_ctx: *mut TSS2_TCTI_CONTEXT = null_mut();
-        result = Fapi_GetTcti(*tpm_ctx, &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT);
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_GetTcti", result));
-        }
+        tss2_call!(Fapi_GetTcti(
+            tpm_ctx.as_mut(),
+            // NOTE: we explicitly do not free this out pointer, as we
+            // believe it is part of the context.
+            &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT,
+        ))?;
 
         let mut esys_ctx: *mut ESYS_CONTEXT = null_mut();
-        result = Esys_Initialize(
+
+        tss2_call!(Esys_Initialize(
             &mut esys_ctx as *mut *mut ESYS_CONTEXT,
             tcti_ctx,
             null_mut(),
-        );
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_Initialize", result));
-        }
+        ))?;
+        let esys_ctx = guard(esys_ctx, |mut p| Esys_Finalize(&mut p));
 
-        result = Esys_ContextLoad(
-            esys_ctx,
-            key_context.as_ptr(),
+        tss2_call!(Esys_ContextLoad(
+            *esys_ctx,
+            &key_context,
             &mut esys_key_handle as *mut ESYS_TR,
-        );
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_ContextLoad", result));
-        }
+        ))?;
+        let esys_key_handle = guard(esys_key_handle, |p| {
+            Esys_FlushContext(*esys_ctx, p);
+        });
 
         let mut public_part: *mut TPM2B_PUBLIC = null_mut();
-        let mut public_name: *mut TPM2B_NAME = null_mut();
-        let mut qualif_name: *mut TPM2B_NAME = null_mut();
-        result = Esys_ReadPublic(
-            esys_ctx,
-            esys_key_handle,
+        tss2_call!(Esys_ReadPublic(
+            *esys_ctx,
+            *esys_key_handle,
             ESYS_TR_NONE,
             ESYS_TR_NONE,
             ESYS_TR_NONE,
             &mut public_part as *mut *mut TPM2B_PUBLIC,
-            &mut public_name as *mut *mut TPM2B_NAME,
-            &mut qualif_name as *mut *mut TPM2B_NAME,
-        );
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_ReadPublic", result));
-        }
+            null_mut(),
+            null_mut(),
+        ))?;
+        let public_part = guard(public_part, |p| Esys_Free(p as *mut c_void));
 
-        let ecc_point = (*public_part).publicArea.unique.ecc;
+        let ecc_point = (**public_part).publicArea.unique.ecc;
         let mut key_bytes = Vec::new();
         key_bytes.extend_from_slice(&ecc_point.x.buffer.as_slice()[..ecc_point.x.size as usize]);
         key_bytes.extend_from_slice(&ecc_point.y.buffer.as_slice()[..ecc_point.y.size as usize]);
-
-        libc::free(public_part as *mut c_void);
-        libc::free(public_name as *mut c_void);
-        libc::free(qualif_name as *mut c_void);
-
-        free_esys_resources(&mut esys_ctx, esys_key_handle)?;
 
         Ok(key_bytes)
     }
@@ -170,143 +144,118 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
 
 pub fn ecdh(x: &[u8], y: &[u8], key_path: &str) -> Result<Vec<u8>> {
     unsafe {
-        let tpm_ctx = tpm().lock().unwrap();
+        let mut tpm_ctx = TPM_CTX.lock().unwrap();
         let mut esys_key_handle: ESYS_TR = u32::MAX;
         let mut blob_type: u8 = 0;
         let mut esys_blob: *mut u8 = null_mut();
         let mut blob_sz: tss2::size_t = 0;
         let mut offset: tss2::size_t = 0;
-        let c_path = CString::new(key_path.as_bytes()).unwrap();
+        let c_path = CString::new(key_path.as_bytes())
+            .map_err(|_| TpmError::BadKeyPath(key_path.to_string()))?;
 
-        let mut result = Fapi_GetEsysBlob(
-            *tpm_ctx,
+        tss2_call!(Fapi_GetEsysBlob(
+            tpm_ctx.as_mut(),
             c_path.as_ptr(),
             &mut blob_type as *mut u8,
             &mut esys_blob as *mut *mut u8,
             &mut blob_sz as *mut tss2::size_t,
-        );
-
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_GetEsysBlob", result));
-        }
+        ))?;
+        let esys_blob = guard(esys_blob, |p| Esys_Free(p as *mut c_void));
 
         if blob_type != FAPI_ESYSBLOB_CONTEXTLOAD as u8 {
-            return Err(TpmError::wrong_key_path());
+            return Err(TpmError::BadKeyPath(key_path.into()).into());
         }
 
         let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
-        result = Tss2_MU_TPMS_CONTEXT_Unmarshal(
-            esys_blob,
+        tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
+            *esys_blob,
             blob_sz,
             &mut offset as *mut tss2::size_t,
             key_context.as_mut_ptr(),
-        );
-        libc::free(esys_blob as *mut c_void);
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error(
-                "Tss2_MU_TPMS_CONTEXT_Unmarshal",
-                result,
-            ));
-        }
+        ))?;
+        let key_context = key_context.assume_init();
 
         let mut tcti_ctx: *mut TSS2_TCTI_CONTEXT = null_mut();
-        result = Fapi_GetTcti(*tpm_ctx, &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT);
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_GetTcti", result));
-        }
+        tss2_call!(Fapi_GetTcti(
+            tpm_ctx.as_mut(),
+            // NOTE: we explicitly do not free this out pointer, as we
+            // believe it is part of the context.
+            &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT
+        ))?;
 
         let mut esys_ctx: *mut ESYS_CONTEXT = null_mut();
-        result = Esys_Initialize(
+        tss2_call!(Esys_Initialize(
             &mut esys_ctx as *mut *mut ESYS_CONTEXT,
             tcti_ctx,
             null_mut(),
-        );
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_Initialize", result));
-        }
+        ))?;
+        let esys_ctx = guard(esys_ctx, |mut p| Esys_Finalize(&mut p));
 
-        result = Esys_ContextLoad(
-            esys_ctx,
-            key_context.as_ptr(),
+        tss2_call!(Esys_ContextLoad(
+            *esys_ctx,
+            &key_context,
             &mut esys_key_handle as *mut ESYS_TR,
-        );
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_ContextLoad", result));
-        }
+        ))?;
+        let esys_key_handle = guard(esys_key_handle, |p| {
+            Esys_FlushContext(*esys_ctx, p);
+        });
+
+        let pub_point = {
+            let mut p: MaybeUninit<TPM2B_ECC_POINT> = MaybeUninit::zeroed();
+            (*p.as_mut_ptr()).point.x.size = x.len() as u16;
+            (*p.as_mut_ptr()).point.x.buffer[..x.len()].copy_from_slice(x);
+            (*p.as_mut_ptr()).point.y.size = y.len() as u16;
+            (*p.as_mut_ptr()).point.y.buffer[..y.len()].copy_from_slice(y);
+            (*p.as_mut_ptr()).size = x.len() as u16 + y.len() as u16;
+            p.assume_init()
+        };
 
         let mut secret: *mut TPM2B_ECC_POINT = null_mut();
-        let mut pub_point: MaybeUninit<TPM2B_ECC_POINT> = MaybeUninit::uninit();
-        let x_len = x.len();
-        let mut mut_point = *pub_point.as_mut_ptr();
-        mut_point.point.x.size = x_len as UINT16;
-        mut_point.point.x.buffer[..x_len].copy_from_slice(x);
 
-        let y_len = y.len();
-        mut_point.point.y.size = y_len as UINT16;
-        mut_point.point.y.buffer[..y_len].copy_from_slice(y);
-        mut_point.size = mut_point.point.x.size + mut_point.point.y.size;
-
-        result = Esys_ECDH_ZGen(
-            esys_ctx,
-            esys_key_handle,
+        tss2_call!(Esys_ECDH_ZGen(
+            *esys_ctx,
+            *esys_key_handle,
             ESYS_TR_PASSWORD,
             ESYS_TR_NONE,
             ESYS_TR_NONE,
-            pub_point.as_ptr(),
+            &pub_point,
             &mut secret as *mut *mut TPM2B_ECC_POINT,
-        );
-
-        if result != TSS2_RC_SUCCESS {
-            free_esys_resources(&mut esys_ctx, esys_key_handle)?;
-            return Err(TpmError::tpm_error("Esys_ECDH_ZGen", result));
-        }
-
-        free_esys_resources(&mut esys_ctx, esys_key_handle)?;
+        ))?;
+        let secret = guard(secret, |p| Esys_Free(p as *mut libc::c_void));
 
         let mut shared_secret_bytes = Vec::new();
         shared_secret_bytes.extend_from_slice(
-            &(*secret).point.x.buffer.as_slice()[..(*secret).point.x.size as usize],
+            &(**secret).point.x.buffer.as_slice()[..(**secret).point.x.size as usize],
         );
         shared_secret_bytes.extend_from_slice(
-            &(*secret).point.y.buffer.as_slice()[..(*secret).point.y.size as usize],
+            &(**secret).point.y.buffer.as_slice()[..(**secret).point.y.size as usize],
         );
 
         Ok(shared_secret_bytes)
     }
 }
 
-pub fn sign(key_path: &str, digest: Vec<u8>) -> Result<Vec<u8>> {
+pub fn sign(key_path: &str, digest: &[u8]) -> Result<Vec<u8>> {
     unsafe {
+        let mut tpm_ctx = TPM_CTX.lock().unwrap();
         let mut raw_signature: *mut u8 = null_mut();
         let mut signature_sz: tss2::size_t = 0;
-        let mut public_key: *mut c_char = null_mut();
-        let mut certificate: *mut c_char = null_mut();
-        let c_path = CString::new(key_path.as_bytes()).unwrap();
-        let result = with_tpm(|tpm_ctx| {
-            Fapi_Sign(
-                tpm_ctx,
-                c_path.as_ptr(),
-                null_mut(),
-                digest.as_ptr(),
-                digest.len() as tss2::size_t,
-                &mut raw_signature as *mut *mut u8,
-                &mut signature_sz as *mut tss2::size_t,
-                &mut public_key as *mut *mut c_char,
-                &mut certificate as *mut *mut c_char,
-            )
-        });
-
-        if result != TSS2_RC_SUCCESS {
-            return Err(TpmError::tpm_error("Fapi_Sign", result));
-        }
-
-        libc::free(public_key as *mut c_void);
-        libc::free(certificate as *mut c_void);
+        let c_path =
+            CString::new(key_path.as_bytes()).map_err(|_| TpmError::BadKeyPath(key_path.into()))?;
+        tss2_call!(Fapi_Sign(
+            tpm_ctx.as_mut(),
+            c_path.as_ptr(),
+            null_mut(),
+            digest.as_ptr(),
+            digest.len() as tss2::size_t,
+            &mut raw_signature as *mut *mut u8,
+            &mut signature_sz as *mut tss2::size_t,
+            null_mut(),
+            null_mut(),
+        ))?;
 
         let sign_slice = std::slice::from_raw_parts(raw_signature, signature_sz as usize).to_vec();
-        libc::free(raw_signature as *mut c_void);
+        Esys_Free(raw_signature as *mut c_void);
 
         Ok(sign_slice)
     }
