@@ -33,7 +33,7 @@ pub trait IsCompactable {
 
 impl IsCompactable for p256::PublicKey {
     fn is_compactable(&self) -> bool {
-        self.as_affine().to_compact_encoded_point().is_some()
+        self.as_affine().to_compact_encoded_point().is_some().into()
     }
 }
 
@@ -203,7 +203,9 @@ impl TryFrom<&[u8]> for PublicKey {
             // Convert to an affine point, then to the compact encoded form.
             // Then finally convert to the p256 public key.
             let public_key = Option::from(p256::AffinePoint::from_encoded_point(&encoded_point))
-                .and_then(|affine_point: p256::AffinePoint| affine_point.to_compact_encoded_point())
+                .and_then(|affine_point: p256::AffinePoint| {
+                    affine_point.to_compact_encoded_point().into()
+                })
                 .and_then(|compact_point| {
                     Option::from(p256::PublicKey::from_encoded_point(&compact_point))
                 })
@@ -335,6 +337,9 @@ mod tests {
         // And now do an ecdh with my keypair and the other public key and
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
-        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
+        assert_eq!(
+            shared_secret.raw_secret_bytes().as_slice(),
+            OTHER_SHARED_SECRET
+        );
     }
 }
