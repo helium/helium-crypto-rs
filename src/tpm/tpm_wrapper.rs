@@ -6,10 +6,11 @@ use std::{ffi::CString, mem::MaybeUninit, ptr::null_mut, ptr::NonNull, sync::Mut
 use tpm::Error as TpmError;
 use tss2::{
     Esys_ContextLoad, Esys_ECDH_ZGen, Esys_Finalize, Esys_FlushContext, Esys_Free, Esys_Initialize,
-    Esys_ReadPublic, Fapi_Finalize, Fapi_GetEsysBlob, Fapi_GetTcti, Fapi_Initialize, Fapi_Sign,
-    Tss2_MU_TPMS_CONTEXT_Unmarshal, ESYS_CONTEXT, ESYS_TR, ESYS_TR_NONE, ESYS_TR_PASSWORD,
-    FAPI_CONTEXT, FAPI_ESYSBLOB_CONTEXTLOAD, TPM2B_ECC_POINT, TPM2B_PUBLIC, TPMS_CONTEXT,
-    TSS2_RC_SUCCESS, TSS2_TCTI_CONTEXT,
+    Esys_ReadPublic, Esys_TR_Deserialize, Fapi_Finalize, Fapi_GetEsysBlob, Fapi_GetTcti,
+    Fapi_Initialize, Fapi_Sign, Tss2_MU_TPMS_CONTEXT_Unmarshal, ESYS_CONTEXT, ESYS_TR,
+    ESYS_TR_NONE, ESYS_TR_PASSWORD, FAPI_CONTEXT, FAPI_ESYSBLOB_CONTEXTLOAD,
+    FAPI_ESYSBLOB_DESERIALIZE, TPM2B_ECC_POINT, TPM2B_PUBLIC, TPMS_CONTEXT, TSS2_RC_SUCCESS,
+    TSS2_TCTI_CONTEXT,
 };
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
@@ -81,19 +82,6 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
         ))?;
         let esys_blob = guard(esys_blob, |p| Esys_Free(p as *mut c_void));
 
-        if blob_type != FAPI_ESYSBLOB_CONTEXTLOAD as u8 {
-            return Err(TpmError::BadKeyPath(key_path.into()).into());
-        }
-
-        let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
-        tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
-            *esys_blob,
-            blob_sz,
-            &mut offset as *mut tss2::size_t,
-            key_context.as_mut_ptr(),
-        ))?;
-        let key_context = key_context.assume_init();
-
         let mut tcti_ctx: *mut TSS2_TCTI_CONTEXT = null_mut();
         tss2_call!(Fapi_GetTcti(
             tpm_ctx.as_mut(),
@@ -111,13 +99,39 @@ pub fn public_key(key_path: &str) -> Result<Vec<u8>> {
         ))?;
         let esys_ctx = guard(esys_ctx, |mut p| Esys_Finalize(&mut p));
 
-        tss2_call!(Esys_ContextLoad(
-            *esys_ctx,
-            &key_context,
-            &mut esys_key_handle as *mut ESYS_TR,
-        ))?;
+        match blob_type as u32 {
+            FAPI_ESYSBLOB_CONTEXTLOAD => {
+                let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
+                tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
+                    *esys_blob,
+                    blob_sz,
+                    &mut offset as *mut tss2::size_t,
+                    key_context.as_mut_ptr(),
+                ))?;
+                let key_context = key_context.assume_init();
+
+                tss2_call!(Esys_ContextLoad(
+                    *esys_ctx,
+                    &key_context,
+                    &mut esys_key_handle as *mut ESYS_TR,
+                ))?;
+            }
+            FAPI_ESYSBLOB_DESERIALIZE => {
+                tss2_call!(Esys_TR_Deserialize(
+                    *esys_ctx,
+                    *esys_blob,
+                    blob_sz,
+                    &mut esys_key_handle as *mut ESYS_TR
+                ))?;
+            }
+            _ => {
+                return Err(TpmError::BadKeyPath(key_path.into()).into());
+            }
+        }
         let esys_key_handle = guard(esys_key_handle, |p| {
-            Esys_FlushContext(*esys_ctx, p);
+            if blob_type as u32 == FAPI_ESYSBLOB_CONTEXTLOAD {
+                Esys_FlushContext(*esys_ctx, p);
+            }
         });
 
         let mut public_part: *mut TPM2B_PUBLIC = null_mut();
@@ -162,28 +176,16 @@ pub fn ecdh(x: &[u8], y: &[u8], key_path: &str) -> Result<Vec<u8>> {
         ))?;
         let esys_blob = guard(esys_blob, |p| Esys_Free(p as *mut c_void));
 
-        if blob_type != FAPI_ESYSBLOB_CONTEXTLOAD as u8 {
-            return Err(TpmError::BadKeyPath(key_path.into()).into());
-        }
-
-        let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
-        tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
-            *esys_blob,
-            blob_sz,
-            &mut offset as *mut tss2::size_t,
-            key_context.as_mut_ptr(),
-        ))?;
-        let key_context = key_context.assume_init();
-
         let mut tcti_ctx: *mut TSS2_TCTI_CONTEXT = null_mut();
         tss2_call!(Fapi_GetTcti(
             tpm_ctx.as_mut(),
             // NOTE: we explicitly do not free this out pointer, as we
             // believe it is part of the context.
-            &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT
+            &mut tcti_ctx as *mut *mut TSS2_TCTI_CONTEXT,
         ))?;
 
         let mut esys_ctx: *mut ESYS_CONTEXT = null_mut();
+
         tss2_call!(Esys_Initialize(
             &mut esys_ctx as *mut *mut ESYS_CONTEXT,
             tcti_ctx,
@@ -191,13 +193,39 @@ pub fn ecdh(x: &[u8], y: &[u8], key_path: &str) -> Result<Vec<u8>> {
         ))?;
         let esys_ctx = guard(esys_ctx, |mut p| Esys_Finalize(&mut p));
 
-        tss2_call!(Esys_ContextLoad(
-            *esys_ctx,
-            &key_context,
-            &mut esys_key_handle as *mut ESYS_TR,
-        ))?;
+        match blob_type as u32 {
+            FAPI_ESYSBLOB_CONTEXTLOAD => {
+                let mut key_context: MaybeUninit<TPMS_CONTEXT> = MaybeUninit::uninit();
+                tss2_call!(Tss2_MU_TPMS_CONTEXT_Unmarshal(
+                    *esys_blob,
+                    blob_sz,
+                    &mut offset as *mut tss2::size_t,
+                    key_context.as_mut_ptr(),
+                ))?;
+                let key_context = key_context.assume_init();
+
+                tss2_call!(Esys_ContextLoad(
+                    *esys_ctx,
+                    &key_context,
+                    &mut esys_key_handle as *mut ESYS_TR,
+                ))?;
+            }
+            FAPI_ESYSBLOB_DESERIALIZE => {
+                tss2_call!(Esys_TR_Deserialize(
+                    *esys_ctx,
+                    *esys_blob,
+                    blob_sz,
+                    &mut esys_key_handle as *mut ESYS_TR
+                ))?;
+            }
+            _ => {
+                return Err(TpmError::BadKeyPath(key_path.into()).into());
+            }
+        }
         let esys_key_handle = guard(esys_key_handle, |p| {
-            Esys_FlushContext(*esys_ctx, p);
+            if blob_type as u32 == FAPI_ESYSBLOB_CONTEXTLOAD {
+                Esys_FlushContext(*esys_ctx, p);
+            }
         });
 
         let pub_point = {
