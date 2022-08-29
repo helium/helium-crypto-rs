@@ -35,7 +35,7 @@ rsa = { version = "0.4", optional = true, default-features = false, features = [
     "std", "pem"
 ] }
 ecc608-linux = { version = "0", optional = true }
-tss2 = { version = "0", optional = true }
+tss-esapi = {version = "7", optional = true}
 lazy_static = "1.4.0"
 libc = { version = "0", optional = true }
 byteorder = { version = "1", optional = true }
@@ -48,7 +48,7 @@ uuid = { version = "1", features = ["v4", "fast-rng"], optional = true }
 default = ["rsa"]
 ecc608 = ["ecc608-linux"]
 rsa = ["dep:rsa", "byteorder"]
-tpm = ["tss2", "libc", "drop_guard"]
+tpm = ["tss-esapi", "libc", "drop_guard"]
 nova-tz = ["rsa", "uuid"]
 multisig = ["multihash"]
 sqlx-postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
