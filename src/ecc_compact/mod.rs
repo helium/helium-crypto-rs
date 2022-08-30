@@ -33,7 +33,7 @@ pub trait IsCompactable {
 
 impl IsCompactable for p256::PublicKey {
     fn is_compactable(&self) -> bool {
-        self.as_affine().to_compact_encoded_point().is_some()
+        self.as_affine().to_compact_encoded_point().is_some().into()
     }
 }
 
@@ -202,13 +202,11 @@ impl TryFrom<&[u8]> for PublicKey {
                 p256::EncodedPoint::from_bytes(input).map_err(p256::elliptic_curve::Error::from)?;
             // Convert to an affine point, then to the compact encoded form.
             // Then finally convert to the p256 public key.
-            let public_key = Option::from(p256::AffinePoint::from_encoded_point(&encoded_point))
+            let public_key: Option<_> = p256::AffinePoint::from_encoded_point(&encoded_point)
                 .and_then(|affine_point: p256::AffinePoint| affine_point.to_compact_encoded_point())
-                .and_then(|compact_point| {
-                    Option::from(p256::PublicKey::from_encoded_point(&compact_point))
-                })
-                .ok_or_else(Error::not_compact)?;
-            Ok(PublicKey(public_key))
+                .and_then(|compact_point| p256::PublicKey::from_encoded_point(&compact_point))
+                .into();
+            Ok(PublicKey(public_key.ok_or_else(Error::not_compact)?))
         }
     }
 }
@@ -228,12 +226,8 @@ impl ReadFrom for PublicKey {
 
 impl WriteTo for PublicKey {
     fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
-        use std::hint::unreachable_unchecked;
-        let encoded = self
-            .0
-            .as_affine()
-            .to_compact_encoded_point()
-            .unwrap_or_else(|| unsafe { unreachable_unchecked() });
+        // safe to unwrap since to_compact_encoded_point() will panic if it is not a compact point
+        let encoded = self.0.as_affine().to_compact_encoded_point().unwrap();
         output.write_all(&encoded.as_bytes()[1..])
     }
 }
@@ -335,6 +329,9 @@ mod tests {
         // And now do an ecdh with my keypair and the other public key and
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
-        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
+        assert_eq!(
+            shared_secret.raw_secret_bytes().as_slice(),
+            OTHER_SHARED_SECRET
+        );
     }
 }
