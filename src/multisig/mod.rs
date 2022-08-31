@@ -64,7 +64,7 @@ pub struct PublicKey {
 
 pub const PUBLIC_KEY_LENGTH: usize = 37;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Signature {
     public_keys: Vec<public_key::PublicKey>,
     key_signatures: Vec<KeySignature>,

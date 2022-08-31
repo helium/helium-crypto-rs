@@ -52,7 +52,7 @@ use std::{
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum Network {
     MainNet,
     TestNet,
@@ -68,7 +68,7 @@ impl Default for Network {
 
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KeyType {
     Ed25519,
     EccCompact,
@@ -86,7 +86,7 @@ impl Default for KeyType {
 
 /// A keytag is the byte prefix tag for both public and private keys in their
 /// binary form. A tag encodes both the network and the type of key.
-#[derive(Debug, Default, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct KeyTag {
     pub network: Network,
     pub key_type: KeyType,

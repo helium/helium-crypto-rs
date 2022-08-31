@@ -18,7 +18,7 @@ pub enum Error {
     BadKeyPath(String),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

@@ -7,7 +7,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct PublicKey(ed25519_dalek::PublicKey);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(ed25519_dalek::Signature);
 
 pub struct Keypair {
