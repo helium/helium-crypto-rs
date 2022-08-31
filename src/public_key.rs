@@ -24,7 +24,7 @@ pub trait PublicKeySize {
 /// network.
 ///
 /// Public keys can convert to and from their binary and base58 representation
-#[derive(Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PublicKey {
     /// The network this public key is valid for
     pub network: Network,
@@ -50,7 +50,7 @@ pub(crate) enum PublicKeyRepr {
     MultiSig(multisig::PublicKey),
 }
 
-impl Eq for PublicKey {}
+impl Eq for PublicKeyRepr {}
 
 impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -235,7 +235,19 @@ impl std::fmt::Display for PublicKey {
     }
 }
 
-use serde::de::{self, Deserialize, Deserializer, Visitor};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
 
 impl<'de> Deserialize<'de> for PublicKey {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
