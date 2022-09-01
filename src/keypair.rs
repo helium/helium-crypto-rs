@@ -206,7 +206,10 @@ mod tests {
         let other_shared = other
             .ecdh(key_pair.public_key())
             .expect("other shared secret");
-        assert_eq!(keypair_shared.as_bytes(), other_shared.as_bytes());
+        assert_eq!(
+            keypair_shared.raw_secret_bytes(),
+            other_shared.raw_secret_bytes()
+        );
     }
 
     #[test]
