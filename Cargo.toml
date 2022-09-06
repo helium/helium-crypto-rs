@@ -33,5 +33,5 @@ hex = "0"
 hex-literal = "0"
 rand = "*"
 sha2 = "*"
-
+serde_json = "1"
 
