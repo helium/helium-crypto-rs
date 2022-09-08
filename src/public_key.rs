@@ -426,4 +426,12 @@ mod tests {
         let hash_two = pubkey_hash(public_key_two);
         assert_ne!(hash_one, hash_two);
     }
+
+    #[test]
+    fn serde() {
+        let orig_pub_key = parse_pubkey(&DEFAULT_BYTES);
+        let serialized = serde_json::to_string(&orig_pub_key).unwrap();
+        let deserialized = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(orig_pub_key, deserialized);
+    }
 }
