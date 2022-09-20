@@ -166,6 +166,43 @@ impl From<multisig::PublicKey> for PublicKeyRepr {
     }
 }
 
+#[cfg(feature = "sqlx-postgres")]
+mod sqlx_postgres {
+    use super::*;
+    use sqlx::{
+        decode::Decode,
+        encode::{Encode, IsNull},
+        error::BoxDynError,
+        postgres::{PgArgumentBuffer, PgTypeInfo, PgValueRef, Postgres},
+        types::Type,
+    };
+
+    impl Type<Postgres> for PublicKey {
+        fn type_info() -> PgTypeInfo {
+            PgTypeInfo::with_name("text")
+        }
+    }
+
+    impl Encode<'_, Postgres> for PublicKey {
+        fn encode_by_ref(&self, buf: &mut PgArgumentBuffer) -> IsNull {
+            let address = self.to_string();
+            Encode::<Postgres>::encode(&address, buf)
+        }
+
+        fn size_hint(&self) -> usize {
+            25
+        }
+    }
+
+    impl<'r> Decode<'r, Postgres> for PublicKey {
+        fn decode(value: PgValueRef<'r>) -> std::result::Result<Self, BoxDynError> {
+            let value = <&str as Decode<Postgres>>::decode(value)?;
+            let key = PublicKey::from_str(value)?;
+            Ok(key)
+        }
+    }
+}
+
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         self.inner.verify(msg, signature)
