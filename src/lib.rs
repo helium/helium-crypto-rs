@@ -52,7 +52,8 @@ use std::{
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Network {
     MainNet,
     TestNet,
@@ -68,9 +69,11 @@ impl Default for Network {
 
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum KeyType {
     Ed25519,
+    #[serde(rename = "ecc_compact")]
     EccCompact,
     #[cfg(feature = "multisig")]
     MultiSig,
@@ -238,4 +241,67 @@ pub trait ReadFrom {
     fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self>
     where
         Self: Sized;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_test::{assert_de_tokens, assert_de_tokens_error, Token};
+
+    #[test]
+    fn network_can_deserialize() {
+        assert_de_tokens(
+            &Network::MainNet,
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "mainnet",
+            }],
+        );
+        assert_de_tokens(
+            &Network::TestNet,
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "testnet",
+            }],
+        );
+        assert_de_tokens_error::<Network>(
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "other",
+            }],
+            "unknown variant `other`, expected `mainnet` or `testnet`",
+        );
+    }
+
+    #[test]
+    fn keytype_can_deserialize() {
+        assert_de_tokens(
+            &KeyType::Ed25519,
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "ed25519",
+            }],
+        );
+        assert_de_tokens(
+            &KeyType::EccCompact,
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "ecc_compact",
+            }],
+        );
+
+        let deser_error: &str = if cfg!(feature = "multisig") {
+            "unknown variant `other`, expected one of `ed25519`, `ecc_compact`, `multisig`"
+        } else {
+            "unknown variant `other`, expected `ed25519` or `ecc_compact`"
+        };
+
+        assert_de_tokens_error::<KeyType>(
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "other",
+            }],
+            deser_error,
+        );
+    }
 }
