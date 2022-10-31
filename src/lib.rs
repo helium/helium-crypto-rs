@@ -69,7 +69,8 @@ impl Default for Network {
 
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum KeyType {
     Ed25519,
     EccCompact,
@@ -239,4 +240,33 @@ pub trait ReadFrom {
     fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self>
     where
         Self: Sized;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn network_can_deserialize() {
+        assert_eq!(
+            Network::MainNet,
+            serde_json::from_str("\"mainnet\"").unwrap()
+        );
+        assert_eq!(
+            Network::TestNet,
+            serde_json::from_str("\"testnet\"").unwrap()
+        );
+    }
+
+    #[test]
+    fn keytype_can_deserialize() {
+        assert_eq!(
+            KeyType::Ed25519,
+            serde_json::from_str("\"ed25519\"").unwrap()
+        );
+        assert_eq!(
+            KeyType::EccCompact,
+            serde_json::from_str("\"ecccompact\"").unwrap()
+        );
+    }
 }
