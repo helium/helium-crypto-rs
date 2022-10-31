@@ -289,12 +289,19 @@ mod tests {
                 variant: "ecc_compact",
             }],
         );
+
+        let deser_error: &str = if cfg!(feature = "multisig") {
+            "unknown variant `other`, expected one of `ed25519`, `ecc_compact`, `multisig`"
+        } else {
+            "unknown variant `other`, expected `ed25519` or `ecc_compact`"
+        };
+
         assert_de_tokens_error::<KeyType>(
             &[Token::UnitVariant {
                 name: "KeyType",
                 variant: "other",
             }],
-            "unknown variant `other`, expected `ed25519` or `ecc_compact`",
+            deser_error,
         );
     }
 }
