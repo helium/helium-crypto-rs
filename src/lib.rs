@@ -73,6 +73,7 @@ impl Default for Network {
 #[serde(rename_all = "lowercase")]
 pub enum KeyType {
     Ed25519,
+    #[serde(rename = "ecc_compact")]
     EccCompact,
     #[cfg(feature = "multisig")]
     MultiSig,
@@ -285,7 +286,7 @@ mod tests {
             &KeyType::EccCompact,
             &[Token::UnitVariant {
                 name: "KeyType",
-                variant: "ecccompact",
+                variant: "ecc_compact",
             }],
         );
         assert_de_tokens_error::<KeyType>(
@@ -293,7 +294,7 @@ mod tests {
                 name: "KeyType",
                 variant: "other",
             }],
-            "unknown variant `other`, expected `ed25519` or `ecccompact`",
+            "unknown variant `other`, expected `ed25519` or `ecc_compact`",
         );
     }
 }
