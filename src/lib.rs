@@ -245,28 +245,55 @@ pub trait ReadFrom {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_test::{assert_de_tokens, assert_de_tokens_error, Token};
 
     #[test]
     fn network_can_deserialize() {
-        assert_eq!(
-            Network::MainNet,
-            serde_json::from_str("\"mainnet\"").unwrap()
+        assert_de_tokens(
+            &Network::MainNet,
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "mainnet",
+            }],
         );
-        assert_eq!(
-            Network::TestNet,
-            serde_json::from_str("\"testnet\"").unwrap()
+        assert_de_tokens(
+            &Network::TestNet,
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "testnet",
+            }],
+        );
+        assert_de_tokens_error::<Network>(
+            &[Token::UnitVariant {
+                name: "Network",
+                variant: "other",
+            }],
+            "unknown variant `other`, expected `mainnet` or `testnet`",
         );
     }
 
     #[test]
     fn keytype_can_deserialize() {
-        assert_eq!(
-            KeyType::Ed25519,
-            serde_json::from_str("\"ed25519\"").unwrap()
+        assert_de_tokens(
+            &KeyType::Ed25519,
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "ed25519",
+            }],
         );
-        assert_eq!(
-            KeyType::EccCompact,
-            serde_json::from_str("\"ecccompact\"").unwrap()
+        assert_de_tokens(
+            &KeyType::EccCompact,
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "ecccompact",
+            }],
+        );
+        assert_de_tokens_error::<KeyType>(
+            &[Token::UnitVariant {
+                name: "KeyType",
+                variant: "other",
+            }],
+            "unknown variant `other`, expected `ed25519` or `ecccompact`",
         );
     }
 }
