@@ -52,7 +52,7 @@ use std::{
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize)]
 pub enum Network {
     MainNet,
     TestNet,
