@@ -1,3 +1,4 @@
 sign-commit = true
-dev-version-ext = "dev"
+sign-tag = true
+allow-branch = ["main"]
 publish = false
