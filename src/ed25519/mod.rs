@@ -5,19 +5,19 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PublicKey(ed25519_dalek::PublicKey);
+pub struct PublicKey(ed25519_compact::PublicKey);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Signature(ed25519_dalek::Signature);
+pub struct Signature(ed25519_compact::Signature);
 
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,
-    secret: ed25519_dalek::Keypair,
+    secret: ed25519_compact::SecretKey,
 }
 
-pub const KEYPAIR_LENGTH: usize = ed25519_dalek::KEYPAIR_LENGTH + 1;
-pub const PUBLIC_KEY_LENGTH: usize = ed25519_dalek::PUBLIC_KEY_LENGTH + 1;
+pub const KEYPAIR_LENGTH: usize = ed25519_compact::SecretKey::BYTES + 1;
+pub const PUBLIC_KEY_LENGTH: usize = ed25519_compact::PublicKey::BYTES + 1;
 
 impl keypair::Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
@@ -32,9 +32,11 @@ impl TryFrom<&[u8]> for Keypair {
 
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let secret =
-            ed25519_dalek::Keypair::from_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
+        let secret = ed25519_compact::SecretKey::from_slice(
+            &input[1..usize::min(input.len(), KEYPAIR_LENGTH)],
+        )?;
+        let public_key =
+            public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
             network,
             public_key,
@@ -46,7 +48,7 @@ impl TryFrom<&[u8]> for Keypair {
 impl WriteTo for Keypair {
     fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
         output.write_all(&[u8::from(self.key_tag())])?;
-        output.write_all(&self.secret.to_bytes())
+        output.write_all(self.secret.as_ref())
     }
 }
 
@@ -55,24 +57,25 @@ impl Keypair {
     where
         R: rand_core::CryptoRng + rand_core::RngCore,
     {
-        let secret = ed25519_dalek::Keypair::generate(csprng);
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
+        let mut seed = [0u8; ed25519_compact::Seed::BYTES];
+        csprng.fill_bytes(&mut seed);
+        let keypair = ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::new(seed));
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(keypair.pk));
         Keypair {
             network,
             public_key,
-            secret,
+            secret: keypair.sk,
         }
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = ed25519_dalek::SecretKey::from_bytes(entropy)?;
-        let public = ed25519_dalek::PublicKey::from(&secret);
-        let secret = ed25519_dalek::Keypair { secret, public };
-        let public_key = public_key::PublicKey::for_network(network, PublicKey(secret.public));
+        let seed = ed25519_compact::Seed::from_slice(entropy)?;
+        let keypair = ed25519_compact::KeyPair::from_seed(seed);
+        let public_key = public_key::PublicKey::for_network(network, PublicKey(keypair.pk));
         Ok(Keypair {
             network,
             public_key,
-            secret,
+            secret: keypair.sk,
         })
     }
 
@@ -91,7 +94,7 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.secret.as_bytes().to_vec()
+        self.secret.as_ref().to_vec()
     }
 }
 
@@ -128,7 +131,8 @@ impl PartialEq for Keypair {
 
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        Ok(Signature(self.secret.sign(msg)))
+        let noise = ed25519_compact::Noise::generate();
+        Ok(Signature(self.secret.sign(msg, Some(noise))))
     }
 }
 
@@ -158,10 +162,8 @@ impl PublicKeySize for PublicKey {
 
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
-        use ed25519_dalek::Verifier;
         let signature = Signature::try_from(signature)?;
-        Verifier::<ed25519_dalek::Signature>::verify(&self.0, msg, &signature.0)
-            .map_err(Error::from)
+        self.0.verify(msg, &signature.0).map_err(Error::from)
     }
 }
 
@@ -196,7 +198,7 @@ impl ReadFrom for PublicKey {
     fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
         let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
         input.read_exact(&mut buf)?;
-        Ok(PublicKey(ed25519_dalek::PublicKey::from_bytes(&buf)?))
+        Ok(PublicKey(ed25519_compact::PublicKey::new(buf)))
     }
 }
 
