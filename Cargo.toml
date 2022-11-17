@@ -4,6 +4,9 @@ version = "0.5.0"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2018"
 license = "Apache-2.0"
+description = "Helium Blockchain cryptography library"
+repository = "https://github.com/helium/helium-crypto-rs"
+readme = "README.md"
 
 [dependencies]
 thiserror = "1"

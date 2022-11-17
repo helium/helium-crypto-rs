@@ -1,4 +1,4 @@
 sign-commit = true
 sign-tag = true
 allow-branch = ["main"]
-publish = false
+publish = true
