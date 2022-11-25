@@ -94,7 +94,7 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.as_ref().to_vec()
+        self.secret.seed().to_vec()
     }
 }
 
