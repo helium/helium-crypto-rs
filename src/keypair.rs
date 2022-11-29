@@ -232,6 +232,16 @@ mod tests {
         );
     }
 
+    fn seed_roundtrip(key_tag: KeyTag) {
+        // Assert that initial entropy is the same as secret_to_vec() returns
+        const ENTROPY: [u8; 32] = [
+            248, 55, 78, 168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170, 248, 55, 78,
+            168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170,
+        ];
+        let keypair = Keypair::generate_from_entropy(key_tag, &ENTROPY).expect("keypair");
+        assert_eq!(ENTROPY.to_vec(), keypair.secret_to_vec());
+    }
+
     #[test]
     fn bytes_roundtrip_secp256k1() {
         bytes_roundtrip(KeyTag {
@@ -264,6 +274,30 @@ mod tests {
         });
         bytes_roundtrip(KeyTag {
             network: Network::TestNet,
+            key_type: KeyType::EccCompact,
+        });
+    }
+
+    #[test]
+    fn seed_roundtrip_ecc_secp256k1() {
+        seed_roundtrip(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::Secp256k1,
+        });
+    }
+
+    #[test]
+    fn seed_roundtrip_ed25519() {
+        seed_roundtrip(KeyTag {
+            network: Network::MainNet,
+            key_type: KeyType::Ed25519,
+        });
+    }
+
+    #[test]
+    fn seed_roundtrip_ecc_compact() {
+        seed_roundtrip(KeyTag {
+            network: Network::MainNet,
             key_type: KeyType::EccCompact,
         });
     }
