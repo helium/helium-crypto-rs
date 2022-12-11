@@ -201,7 +201,7 @@ mod sqlx_postgres {
     impl<'r> Decode<'r, Postgres> for PublicKey {
         fn decode(value: PgValueRef<'r>) -> std::result::Result<Self, BoxDynError> {
             let value = <&str as Decode<Postgres>>::decode(value)?;
-            let key = PublicKey::from_str(value)?;
+            let key = Self::from_str(value)?;
             Ok(key)
         }
     }
@@ -317,11 +317,11 @@ impl<'de> Deserialize<'de> for PublicKey {
                 formatter.write_str("base58 public key")
             }
 
-            fn visit_str<E>(self, value: &str) -> std::result::Result<PublicKey, E>
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                let key = PublicKey::from_str(value)
+                let key = Self::Value::from_str(value)
                     .map_err(|_| de::Error::custom("invalid public key"))?;
                 Ok(key)
             }
