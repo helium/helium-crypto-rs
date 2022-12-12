@@ -55,7 +55,7 @@ impl Error {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub struct PublicKey {
     pub(crate) m: u8,
     pub(crate) n: u8,
@@ -274,6 +274,18 @@ impl WriteTo for PublicKey {
 impl PartialEq for PublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.keys_digest == other.keys_digest
+    }
+}
+
+impl PartialOrd for PublicKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.keys_digest.partial_cmp(&other.keys_digest)
+    }
+}
+
+impl Ord for PublicKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.keys_digest.cmp(&other.keys_digest)
     }
 }
 

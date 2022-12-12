@@ -180,6 +180,20 @@ impl PublicKeySize for PublicKey {
     const PUBLIC_KEY_SIZE: usize = PUBLIC_KEY_LENGTH;
 }
 
+impl Eq for PublicKey {}
+
+impl PartialOrd for PublicKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl Ord for PublicKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use signature::Verifier;
