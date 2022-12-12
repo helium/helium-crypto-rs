@@ -162,6 +162,7 @@ mod tests {
         let pubkey: PublicKey = B58.parse().expect("public key");
         assert_eq!(pubkey_bin.to_string(), B58.to_string());
         assert_eq!(pubkey_bin, PublicKeyBinary::from(pubkey_bin.as_ref()));
+        assert_eq!(pubkey_bin, PublicKeyBinary::from(pubkey.clone()));
         assert_eq!(
             pubkey_bin,
             PublicKeyBinary::from(<PublicKeyBinary as Into<Vec<u8>>>::into(pubkey_bin.clone()))
