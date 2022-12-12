@@ -381,6 +381,14 @@ impl PublicKey {
             PublicKeyRepr::Secp256k1(..) => secp256k1::PUBLIC_KEY_LENGTH,
         }
     }
+
+    pub fn to_solana(&self) -> Option<solana_sdk::pubkey::Pubkey> {
+        if let PublicKeyRepr::Ed25519(key) = &self.inner {
+            Some(solana_sdk::pubkey::Pubkey::new(key.as_ref()))
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(test)]

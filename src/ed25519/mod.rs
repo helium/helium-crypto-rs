@@ -215,17 +215,36 @@ mod tests {
     use hex_literal::hex;
     use std::convert::TryFrom;
 
+    // The first 32 bytes are entropy.
+    // The following 32 bytes are the pubkey.
+    const BYTES: [u8; 64] = [
+        248, 55, 78, 168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170, 248, 55, 78, 168,
+        99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170, 185, 118, 86, 186, 8, 131, 178,
+        232, 103, 147, 246, 193, 186, 72, 71, 232, 25, 244, 178, 49, 35, 157, 89, 72, 28, 17, 212,
+        63, 72, 54, 42, 9,
+    ];
+
     #[test]
     fn seed() {
-        const ENTROPY: [u8; 32] = [
-            248, 55, 78, 168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170, 248, 55, 78,
-            168, 99, 123, 22, 203, 36, 250, 136, 86, 110, 119, 198, 170,
-        ];
-        let keypair = Keypair::generate_from_entropy(Network::MainNet, &ENTROPY).expect("keypair");
+        let entropy = &BYTES[..32];
+        let keypair = Keypair::generate_from_entropy(Network::MainNet, entropy).expect("keypair");
         assert_eq!(
             "14MRZY2jc2ABDq1faCCMmXrkm2PXY9UBRTP1j9PWnFTKnCb7Hyn",
             keypair.public_key.to_string()
         );
+    }
+
+    #[test]
+    fn solana() {
+        use solana_sdk::signature as solana_sdk;
+
+        let solana_wallet = solana_sdk::Keypair::from_bytes(&BYTES).unwrap();
+        let solana_pubkey = solana_sdk::Signer::pubkey(&solana_wallet);
+
+        let entropy = &BYTES[..32];
+        let keypair = Keypair::generate_from_entropy(Network::MainNet, &entropy).expect("keypair");
+        let solana_pubkey_from_helium = keypair.public_key.to_solana().unwrap();
+        assert_eq!(solana_pubkey, solana_pubkey_from_helium);
     }
 
     #[test]
