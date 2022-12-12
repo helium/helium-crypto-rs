@@ -45,11 +45,13 @@ pub use multihash;
 
 pub mod error;
 pub mod public_key;
+pub mod public_key_binary;
 
 mod keypair;
 pub use error::{Error, Result};
 pub use keypair::{Keypair, Sign};
 pub use public_key::{PublicKey, PublicKeySize, Verify};
+pub use public_key_binary::PublicKeyBinary;
 use std::{
     convert::{From, TryFrom, TryInto},
     fmt,
