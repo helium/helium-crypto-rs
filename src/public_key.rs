@@ -42,7 +42,7 @@ impl fmt::Debug for PublicKey {
 }
 
 /// Holds the actual representation of all supported public key types.
-#[derive(Clone, PartialEq, Hash)]
+#[derive(Clone, PartialEq, Hash, PartialOrd, Ord)]
 pub(crate) enum PublicKeyRepr {
     EccCompact(ecc_compact::PublicKey),
     Ed25519(ed25519::PublicKey),
@@ -61,7 +61,12 @@ impl PartialOrd for PublicKey {
 
 impl Ord for PublicKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.to_string().cmp(&other.to_string())
+        let network_cmp = self.network.cmp(&other.network);
+        if network_cmp == std::cmp::Ordering::Equal {
+            self.inner.cmp(&other.inner)
+        } else {
+            network_cmp
+        }
     }
 }
 
