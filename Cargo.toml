@@ -34,6 +34,7 @@ ecc608 = [ "ecc608-linux" ]
 tpm = ["tss2", "libc", "drop_guard"]
 multisig = ["multihash"]
 sqlx-postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
+solana = ["solana-sdk"]
 
 [dev-dependencies]
 hex = "0"

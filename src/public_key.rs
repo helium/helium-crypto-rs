@@ -382,6 +382,7 @@ impl PublicKey {
         }
     }
 
+    #[features(solana)]
     pub fn to_solana(&self) -> Option<solana_sdk::pubkey::Pubkey> {
         if let PublicKeyRepr::Ed25519(key) = &self.inner {
             Some(solana_sdk::pubkey::Pubkey::new(key.as_ref()))

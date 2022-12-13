@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn solana() {
+    fn solana_pubkey() {
         use solana_sdk::signature as solana_sdk;
 
         let solana_wallet = solana_sdk::Keypair::from_bytes(&BYTES).unwrap();
