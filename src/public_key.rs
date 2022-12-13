@@ -381,13 +381,17 @@ impl PublicKey {
             PublicKeyRepr::Secp256k1(..) => secp256k1::PUBLIC_KEY_LENGTH,
         }
     }
+}
 
-    #[features(solana)]
-    pub fn to_solana(&self) -> Option<solana_sdk::pubkey::Pubkey> {
-        if let PublicKeyRepr::Ed25519(key) = &self.inner {
-            Some(solana_sdk::pubkey::Pubkey::new(key.as_ref()))
+#[cfg(feature = "solana")]
+impl TryFrom<PublicKey> for solana_sdk::pubkey::Pubkey {
+    type Error = &'static str;
+
+    fn try_from(public_key: PublicKey) -> std::result::Result<Self, Self::Error> {
+        if let PublicKeyRepr::Ed25519(key) = public_key.inner {
+            Ok(solana_sdk::pubkey::Pubkey::new(key.as_ref()))
         } else {
-            None
+            Err("Only Helium Ed25519 keys may be converted to a Solana address")
         }
     }
 }
