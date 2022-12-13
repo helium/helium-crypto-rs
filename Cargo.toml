@@ -13,7 +13,7 @@ thiserror = "1"
 bs58 = {version = "0.4", features=["check"]}
 base64 = "0"
 drop_guard = { version = "0.3.0", optional = true }
-signature = "*"
+signature = "1.6"
 serde =  {version = "1", features=["derive"]}
 rand_core = { version = "0.6", features = ["getrandom"] }
 sha2 = "0"
