@@ -41,7 +41,7 @@ jobs:
       - name: Test
         uses: actions-rs/tarpaulin@v0.1
         with:
-          args: "--features multisig -- --test-threads 1"
+          args: "--features multisig,solana -- --test-threads 1"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v1.2.1

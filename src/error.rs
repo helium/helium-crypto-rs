@@ -50,6 +50,8 @@ pub enum DecodeError {
     NotCompact,
     #[error("missing type byte")]
     MissingType,
+    #[error("unsupported {0}")]
+    Unsupported(&'static str),
 }
 
 impl From<bs58::decode::Error> for Error {

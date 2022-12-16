@@ -388,6 +388,22 @@ impl PublicKey {
     }
 }
 
+#[cfg(feature = "solana")]
+impl TryFrom<PublicKey> for solana_sdk::pubkey::Pubkey {
+    type Error = error::Error;
+
+    fn try_from(public_key: PublicKey) -> std::result::Result<Self, Self::Error> {
+        if let PublicKeyRepr::Ed25519(key) = public_key.inner {
+            Ok(solana_sdk::pubkey::Pubkey::new(key.as_ref()))
+        } else {
+            Err(error::DecodeError::Unsupported(
+                "only Helium Ed25519 keys may be converted to a Solana key",
+            )
+            .into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
