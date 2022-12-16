@@ -50,8 +50,8 @@ pub enum DecodeError {
     NotCompact,
     #[error("missing type byte")]
     MissingType,
-    #[error("only Helium Ed25519 keys may be converted to a Solana key")]
-    UnsupportedSolanaConversion,
+    #[error("unsupported {0}")]
+    Unsupported(&'static str),
 }
 
 impl From<bs58::decode::Error> for Error {
