@@ -43,6 +43,9 @@ pub mod multisig;
 #[cfg(feature = "multisig")]
 pub use multihash;
 
+#[cfg(feature = "solana")]
+pub use solana_sdk;
+
 pub mod error;
 pub mod public_key;
 pub mod public_key_binary;
