@@ -386,13 +386,18 @@ impl PublicKey {
             PublicKeyRepr::Secp256k1(..) => secp256k1::PUBLIC_KEY_LENGTH,
         }
     }
+
+    #[cfg(feature = "solana")]
+    pub fn to_solana(&self) -> Result<solana_sdk::pubkey::Pubkey> {
+        self.clone().try_into()
+    }
 }
 
 #[cfg(feature = "solana")]
 impl TryFrom<PublicKey> for solana_sdk::pubkey::Pubkey {
-    type Error = error::Error;
+    type Error = Error;
 
-    fn try_from(public_key: PublicKey) -> std::result::Result<Self, Self::Error> {
+    fn try_from(public_key: PublicKey) -> Result<Self> {
         if let PublicKeyRepr::Ed25519(key) = public_key.inner {
             Ok(solana_sdk::pubkey::Pubkey::new(key.as_ref()))
         } else {
