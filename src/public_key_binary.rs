@@ -119,13 +119,19 @@ mod sqlx_postgres {
         decode::Decode,
         encode::{Encode, IsNull},
         error::BoxDynError,
-        postgres::{PgArgumentBuffer, PgTypeInfo, PgValueRef, Postgres},
+        postgres::{PgArgumentBuffer, PgHasArrayType, PgTypeInfo, PgValueRef, Postgres},
         types::Type,
     };
 
     impl Type<Postgres> for PublicKeyBinary {
         fn type_info() -> PgTypeInfo {
             PgTypeInfo::with_name("text")
+        }
+    }
+
+    impl PgHasArrayType for PublicKeyBinary {
+        fn array_type_info() -> PgTypeInfo {
+            PgTypeInfo::with_name("_text")
         }
     }
 

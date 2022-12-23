@@ -438,7 +438,7 @@ mod tests {
     }
 
     fn parse_pubkey(bytes: &[u8; 33]) -> PublicKey {
-        PublicKey::from_bytes(&bytes).expect("failed to parse bytes as publickey")
+        PublicKey::from_bytes(bytes).expect("failed to parse bytes as publickey")
     }
 
     #[test]
