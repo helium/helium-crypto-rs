@@ -1,4 +1,5 @@
 use crate::*;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use multihash::{Multihash, MultihashDigest};
 use std::{
     convert::TryFrom,
@@ -80,7 +81,7 @@ impl fmt::Debug for KeySignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeySignature")
             .field("index", &self.index)
-            .field("signature", &base64::encode(&self.signature))
+            .field("signature", &STANDARD.encode(&self.signature))
             .finish()
     }
 }
@@ -300,7 +301,7 @@ impl fmt::Debug for PublicKey {
         f.debug_struct("PublicKey")
             .field("m", &self.m)
             .field("n", &self.n)
-            .field("key_digest", &base64::encode(&self.keys_digest))
+            .field("key_digest", &STANDARD.encode(&self.keys_digest))
             .finish()
     }
 }

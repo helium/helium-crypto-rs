@@ -33,7 +33,7 @@ pub trait IsCompactable {
 
 impl IsCompactable for p256::PublicKey {
     fn is_compactable(&self) -> bool {
-        self.as_affine().to_compact_encoded_point().is_some().into()
+        self.as_affine().to_compact_encoded_point().is_some()
     }
 }
 

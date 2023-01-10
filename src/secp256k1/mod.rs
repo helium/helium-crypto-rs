@@ -1,4 +1,5 @@
 use crate::*;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use k256::{ecdsa, elliptic_curve::sec1::ToEncodedPoint};
 use std::{
     convert::TryFrom,
@@ -232,7 +233,8 @@ impl PublicKey {
                 collect.push_str(line);
             }
         }
-        let bytes = base64::decode(&collect)
+        let bytes = STANDARD
+            .decode(&collect)
             .map_err(|e| super::Error::Secp256k1(Error::Base64Decode(e)))?;
         // all PEM encodings should be the same length
         if bytes.len() != TOTAL_PEM_LEN {
