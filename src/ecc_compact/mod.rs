@@ -344,9 +344,6 @@ mod tests {
         // And now do an ecdh with my keypair and the other public key and
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
-        assert_eq!(
-            shared_secret.raw_secret_bytes().as_slice(),
-            OTHER_SHARED_SECRET
-        );
+        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
     }
 }
