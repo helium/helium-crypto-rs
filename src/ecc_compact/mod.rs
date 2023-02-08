@@ -309,6 +309,18 @@ mod tests {
     }
 
     #[test]
+    fn verify_invalid_sig() {
+        // Test a msg signed and verified with a keypair generated with erlang
+        // libp2p_crypto but with a truncated signature
+        const MSG: &[u8] = b"hello world";
+        const PUBKEY: &str = "11nYr7TBMbpGiQadiCxGCPZFZ8ENo1JNtbS7aB5U7UXn4a8Dvb3";
+        const SIG: &[u8] = &hex!("304402206d791eb96bcc7d0ef403bc7a653fd99a6906374ec9");
+
+        let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
+        assert!(public_key.verify(MSG, SIG).is_err());
+    }
+
+    #[test]
     fn b58_roundtrip() {
         const B58: &str = "112jXiCTi9DpLC5nLdSZ2zccRVEtZizRJMizziCebaNbRDi8k6wR";
         let decoded: crate::PublicKey = B58.parse().expect("b58 public key");

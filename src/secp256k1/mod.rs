@@ -327,6 +327,17 @@ mod tests {
     }
 
     #[test]
+    fn verify_invalid_sig() {
+        // Test a msg signed and verified with a keypair generated with erlang crypto
+        // and compressed by hand but with a truncated signature
+        const MSG: &[u8] = b"hello world";
+        const PUBKEY: &str = "1SpLY6fic4fGthLGjeAUdLVNVYk1gJGrWTGhsukm2dnELaSEQmhL";
+        let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
+        const SIG: &[u8] = &hex!("3045022100b72de78c39ecdb7db78429362bcdea509cd414");
+        assert!(public_key.verify(MSG, SIG).is_err());
+    }
+
+    #[test]
     #[ignore]
     // Test to be skipped until BIP-0062 adjustments to k256 ECDSA are removed
     // from elliptic-curves library.
