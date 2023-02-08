@@ -5,7 +5,7 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PublicKey(ed25519_compact::PublicKey);
+pub struct PublicKey(pub(crate) ed25519_compact::PublicKey);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(ed25519_compact::Signature);
