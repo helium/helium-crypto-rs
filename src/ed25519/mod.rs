@@ -176,6 +176,9 @@ impl Ord for PublicKey {
 
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
+        if signature.len() != ed25519_compact::Signature::BYTES {
+            return Err(ed25519_compact::Error::InvalidSignature.into());
+        }
         let signature = Signature::try_from(signature)?;
         self.0.verify(msg, &signature.0).map_err(Error::from)
     }
@@ -304,6 +307,18 @@ mod tests {
 
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         assert!(public_key.verify(MSG, SIG).is_ok());
+    }
+
+    #[test]
+    fn verify_invalid_sig() {
+        // Test a msg signed and verified with a keypair generated with erlang
+        // libp2p_crypto but with a truncated signature
+        const MSG: &[u8] = b"hello world";
+        const PUBKEY: &str = "13WvV82S7QN3VMzMSieiGxvuaPKknMtf213E5JwPnboDkUfesKw";
+        const SIG: &[u8] = &hex!("ef3e85dc7ea338c6b67399873131ea7b2265c51622");
+
+        let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
+        assert!(public_key.verify(MSG, SIG).is_err());
     }
 
     #[test]
