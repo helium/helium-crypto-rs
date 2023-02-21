@@ -1,6 +1,6 @@
 [package]
 name = "helium-crypto"
-version = "0.6.7"
+version = "0.6.8"
 authors = ["Marc Nijdam <marc@helium.com>"]
 edition = "2018"
 license = "Apache-2.0"
