@@ -394,7 +394,7 @@ impl TryFrom<PublicKey> for solana_sdk::pubkey::Pubkey {
 
     fn try_from(public_key: PublicKey) -> std::result::Result<Self, Self::Error> {
         if let PublicKeyRepr::Ed25519(key) = public_key.inner {
-            Ok(solana_sdk::pubkey::Pubkey::from(*key.0))
+            Ok(solana_sdk::pubkey::Pubkey::new_from_array(*key.0))
         } else {
             Err(error::DecodeError::Unsupported(
                 "only Helium Ed25519 keys may be converted to a Solana key",
