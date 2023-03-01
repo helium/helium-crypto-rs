@@ -8,7 +8,7 @@ use std::{
 pub struct PublicKey(pub(crate) ed25519_compact::PublicKey);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Signature(ed25519_compact::Signature);
+pub struct Signature(::ed25519::Signature);
 
 pub struct Keypair {
     pub network: Network,
@@ -98,22 +98,6 @@ impl Keypair {
     }
 }
 
-impl signature::Signature for Signature {
-    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(signature::Signature::from_bytes(input)?))
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-}
-
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 impl std::fmt::Debug for Keypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         f.debug_struct("Keypair")
@@ -132,17 +116,21 @@ impl PartialEq for Keypair {
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         let noise = ed25519_compact::Noise::generate();
-        Ok(Signature(self.secret.sign(msg, Some(noise))))
+        let signature = self.secret.sign(msg, Some(noise));
+        Ok(Signature(::ed25519::Signature::try_from(
+            signature.as_slice(),
+        )?))
     }
 }
 
 impl Signature {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+        Self::try_from(bytes)
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
-        self.as_ref().to_vec()
+        use signature::SignatureEncoding;
+        self.0.to_vec()
     }
 }
 
@@ -150,8 +138,8 @@ impl TryFrom<&[u8]> for Signature {
     type Error = Error;
 
     fn try_from(input: &[u8]) -> Result<Self> {
-        signature::Signature::from_bytes(input)
-            .map(Signature)
+        ::ed25519::Signature::try_from(input)
+            .map(ed25519::Signature)
             .map_err(Error::from)
     }
 }
@@ -176,11 +164,11 @@ impl Ord for PublicKey {
 
 impl public_key::Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
-        if signature.len() != ed25519_compact::Signature::BYTES {
+        if signature.len() != ::ed25519::Signature::BYTE_SIZE {
             return Err(ed25519_compact::Error::InvalidSignature.into());
         }
-        let signature = Signature::try_from(signature)?;
-        self.0.verify(msg, &signature.0).map_err(Error::from)
+        let signature = ed25519_compact::Signature::from_slice(signature)?;
+        self.0.verify(msg, &signature).map_err(Error::from)
     }
 }
 

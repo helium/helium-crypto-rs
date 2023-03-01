@@ -112,22 +112,6 @@ impl Keypair {
     }
 }
 
-impl signature::Signature for Signature {
-    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(signature::Signature::from_bytes(input)?))
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-}
-
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         Ok(Signature(self.secret.sign(msg)))
@@ -136,7 +120,7 @@ impl signature::Signer<Signature> for Keypair {
 
 impl Signature {
     pub fn from_be_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+        Ok(Signature(ecdsa::Signature::try_from(bytes)?))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {

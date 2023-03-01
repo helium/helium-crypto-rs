@@ -40,6 +40,8 @@ jobs:
 
       - name: Test
         uses: actions-rs/tarpaulin@v0.1
+        env:
+          RUST_BACKTRACE: 1
         with:
           version: 0.22.0
           args: "--features multisig,solana -- --test-threads 1"

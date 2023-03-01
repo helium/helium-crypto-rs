@@ -74,7 +74,7 @@ impl Keypair {
     where
         C: TryInto<&'a ecc_compact::PublicKey, Error = error::Error>,
     {
-        use p256::elliptic_curve::sec1::ToEncodedPoint;
+        use p256::elliptic_curve::{group::GroupEncoding, sec1::ToEncodedPoint};
         let key = public_key.try_into()?;
         let point = key.0.to_encoded_point(false);
         let x = point.x().unwrap().as_slice();
@@ -88,7 +88,7 @@ impl Keypair {
             .map_err(p256::elliptic_curve::Error::from)?;
         let affine_point = p256::AffinePoint::from_encoded_point(&encoded_point).unwrap();
         Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(
-            &affine_point,
+            *p256::FieldBytes::from_slice(affine_point.to_bytes().as_slice()),
         )))
     }
 }
