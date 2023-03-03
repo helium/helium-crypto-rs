@@ -51,7 +51,7 @@ impl TryFrom<&[u8]> for Keypair {
     type Error = super::error::Error;
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let secret = k256::SecretKey::from_be_bytes(&input[1..])?;
+        let secret = k256::SecretKey::from_slice(&input[1..])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
@@ -84,7 +84,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = k256::SecretKey::from_be_bytes(entropy)?;
+        let secret = k256::SecretKey::from_slice(entropy)?;
         let public_key = secret.public_key();
         Ok(Keypair {
             network,
