@@ -7,42 +7,68 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  RUSTFLAGS: "-D warnings"
+  RUSTUP_MAX_RETRIES: 10
+
 jobs:
-  build-linux:
-    runs-on: ubuntu-22.04
+  hygiene:
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Setup | Dependencies
         run: sudo apt-get install -y libtss2-dev
 
-      - uses: actions-rs/toolchain@v1
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          default: true
-          override: true
           components: clippy, rustfmt
 
-      - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.5.0
+      - name: Setup | Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build | Hygiene
+        run: |
+          cargo fmt  -- --check
+          cargo clippy --all-features -- -D clippy::all
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup | Tarpaulin
+        uses: jaxxstorm/action-install-gh-release@v1.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          access_token: ${{ github.token }}
+          repo: xd009642/tarpaulin
 
-      - name: Check formatting
-        run: cargo fmt -- --check
-
-      - name: Clippy
-        uses: actions-rs/clippy-check@v1
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features -- -Dclippy::all
+          components: clippy, rustfmt
 
-      - name: Test
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: 0.22.0
-          args: "--features multisig,solana -- --test-threads 1"
+      - name: Setup | Dependencies
+        run: |
+          sudo apt-get install -y libtss2-dev
 
-      - name: Upload coverage
+      - name: Setup | Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test | Run
+        env:
+          RUST_BACKTRACE: 1
+        run: |
+          cargo tarpaulin --features multisig,solana -- --test-threads 1
+
+      - name: Test | Report
         uses: codecov/codecov-action@v1.2.1
