@@ -13,7 +13,7 @@ use std::{
 };
 
 static INIT: Once = Once::new();
-static mut ECC: Option<Mutex<Ecc>> = None;
+static ECC: Mutex<Option<Ecc>> = Mutex::new(None);
 
 pub struct Keypair {
     pub network: Network,
@@ -49,14 +49,8 @@ pub fn init(path: &str, address: u16) -> Result {
         return Ok(());
     }
     let ecc = ecc608_linux::Ecc::from_path(path, address)?;
-    unsafe {
-        INIT.call_once(|| ECC = Some(Mutex::new(ecc)));
-    }
+    INIT.call_once(|| *ECC.lock().unwrap() = Some(ecc));
     Ok(())
-}
-
-fn ecc<'a>() -> &'a Mutex<Ecc> {
-    unsafe { ECC.as_ref().unwrap() }
 }
 
 impl Keypair {
@@ -117,8 +111,11 @@ pub fn with_ecc<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Ecc) -> R,
 {
-    let mut ecc = ecc().lock().unwrap();
-    f(&mut ecc)
+    let mut maybe_ecc = ECC.lock().unwrap();
+    maybe_ecc
+        .as_mut()
+        .map(f)
+        .expect("ECC must be initialized before use")
 }
 
 impl signature::Signer<Signature> for Keypair {
