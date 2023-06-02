@@ -404,6 +404,16 @@ impl TryFrom<PublicKey> for solana_sdk::pubkey::Pubkey {
     }
 }
 
+#[cfg(feature = "solana")]
+impl From<solana_sdk::pubkey::Pubkey> for PublicKey {
+    fn from(v: solana_sdk::pubkey::Pubkey) -> Self {
+        let repr = PublicKeyRepr::Ed25519(ed25519::PublicKey(ed25519_compact::PublicKey::new(
+            v.to_bytes(),
+        )));
+        Self::for_network(Network::MainNet, repr)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -525,5 +535,16 @@ mod tests {
             }
         );
         assert_eq!(public_key.to_string(), B58.to_string())
+    }
+
+    #[cfg(feature = "solana")]
+    #[test]
+    fn solana_roundtrip() {
+        const B58: &str = "14tCTJDdrecpCN29entF8btzNAoDP6qEAn8CxUiT9SdVwiyXji8";
+        let helium_pubkey: PublicKey = B58.parse().expect("helium public key");
+        let solana_pubkey =
+            solana_sdk::pubkey::Pubkey::try_from(helium_pubkey.clone()).expect("solana pubkey");
+
+        assert_eq!(helium_pubkey, PublicKey::from(solana_pubkey))
     }
 }
