@@ -49,6 +49,8 @@ pub(crate) enum PublicKeyRepr {
     #[cfg(feature = "multisig")]
     MultiSig(multisig::PublicKey),
     Secp256k1(secp256k1::PublicKey),
+    #[cfg(feature = "rsa")]
+    Rsa(rsa::PublicKey),
 }
 
 impl Eq for PublicKeyRepr {}
@@ -114,6 +116,8 @@ impl TryFrom<&[u8]> for PublicKeyRepr {
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => Ok(Self::MultiSig(multisig::PublicKey::try_from(bytes)?)),
             KeyType::Secp256k1 => Ok(Self::Secp256k1(secp256k1::PublicKey::try_from(bytes)?)),
+            #[cfg(feature = "rsa")]
+            KeyType::Rsa => Ok(Self::Rsa(rsa::PublicKey::try_from(bytes)?)),
         }
     }
 }
@@ -136,6 +140,8 @@ impl ReadFrom for PublicKey {
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => PublicKeyRepr::MultiSig(multisig::PublicKey::read_from(input)?),
             KeyType::Secp256k1 => PublicKeyRepr::Secp256k1(secp256k1::PublicKey::read_from(input)?),
+            #[cfg(feature = "rsa")]
+            KeyType::Rsa => PublicKeyRepr::Rsa(rsa::PublicKey::read_from(input)?),
         };
         Ok(Self {
             network: key_tag.network,
@@ -152,6 +158,8 @@ impl WriteTo for PublicKeyRepr {
             #[cfg(feature = "multisig")]
             Self::MultiSig(key) => key.write_to(output),
             Self::Secp256k1(key) => key.write_to(output),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(key) => key.write_to(output),
         }
     }
 }
@@ -172,6 +180,13 @@ impl From<ecc_compact::PublicKey> for PublicKeyRepr {
 impl From<multisig::PublicKey> for PublicKeyRepr {
     fn from(v: multisig::PublicKey) -> Self {
         Self::MultiSig(v)
+    }
+}
+
+#[cfg(feature = "rsa")]
+impl From<rsa::PublicKey> for PublicKeyRepr {
+    fn from(v: rsa::PublicKey) -> Self {
+        Self::Rsa(v)
     }
 }
 
@@ -232,6 +247,8 @@ impl Verify for PublicKeyRepr {
             Self::EccCompact(key) => key.verify(msg, signature),
             #[cfg(feature = "multisig")]
             Self::MultiSig(key) => key.verify(msg, signature),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(key) => key.verify(msg, signature),
         }
     }
 }
@@ -270,6 +287,13 @@ impl<'a> TryFrom<&'a PublicKey> for &'a ed25519::PublicKey {
 
 impl From<secp256k1::PublicKey> for PublicKey {
     fn from(v: secp256k1::PublicKey) -> Self {
+        Self::for_network(Network::MainNet, v)
+    }
+}
+
+#[cfg(feature = "rsa")]
+impl From<rsa::PublicKey> for PublicKey {
+    fn from(v: rsa::PublicKey) -> Self {
         Self::for_network(Network::MainNet, v)
     }
 }
@@ -366,6 +390,8 @@ impl PublicKey {
             #[cfg(feature = "multisig")]
             PublicKeyRepr::MultiSig(..) => KeyType::MultiSig,
             PublicKeyRepr::Secp256k1(..) => KeyType::Secp256k1,
+            #[cfg(feature = "rsa")]
+            PublicKeyRepr::Rsa(..) => KeyType::Rsa,
         }
     }
 
@@ -378,12 +404,14 @@ impl PublicKey {
     }
 
     pub fn public_key_size(&self) -> usize {
-        match self.inner {
+        match &self.inner {
             PublicKeyRepr::EccCompact(..) => ecc_compact::PublicKey::PUBLIC_KEY_SIZE,
             PublicKeyRepr::Ed25519(..) => ed25519::PublicKey::PUBLIC_KEY_SIZE,
             #[cfg(feature = "multisig")]
             PublicKeyRepr::MultiSig(..) => multisig::PublicKey::PUBLIC_KEY_SIZE,
             PublicKeyRepr::Secp256k1(..) => secp256k1::PUBLIC_KEY_LENGTH,
+            #[cfg(feature = "rsa")]
+            PublicKeyRepr::Rsa(public_key) => public_key.public_key_size(),
         }
     }
 }

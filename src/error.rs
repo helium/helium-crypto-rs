@@ -36,6 +36,11 @@ pub enum Error {
 
     #[error("secp256k1 error")]
     Secp256k1(#[from] crate::secp256k1::Error),
+
+    #[cfg(feature = "rsa")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rsa")))]
+    #[error("rsa error")]
+    Rsa(#[from] ::rsa::Error),
 }
 
 #[derive(Error, Debug)]
