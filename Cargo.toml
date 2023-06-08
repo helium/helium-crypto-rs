@@ -25,12 +25,12 @@ ecc608-linux = { version = "0", optional = true}
 tss2 = {version = "0", optional = true}
 lazy_static = "1.4.0"
 libc = {version = "0", optional = true}
-multihash = {version = "0", optional = true}
+multihash = {version = "0.18", optional = true}
 sqlx = {version = "0", optional = true, default-features=false}
 solana-sdk = {version = ">= 1, < 2", optional = true }
 
 [features]
-default = []
+default = ["multisig"]
 ecc608 = [ "ecc608-linux" ]
 tpm = ["tss2", "libc", "drop_guard"]
 multisig = ["multihash"]
