@@ -18,6 +18,8 @@ pub enum Keypair {
     Ecc608(ecc608::Keypair),
     #[cfg(feature = "tpm")]
     TPM(tpm::Keypair),
+    #[cfg(feature = "rsa")]
+    Rsa(Box<rsa::Keypair>),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -32,6 +34,8 @@ impl Sign for Keypair {
             Self::Ecc608(keypair) => keypair.sign(msg),
             #[cfg(feature = "tpm")]
             Self::TPM(keypair) => keypair.sign(msg),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => keypair.sign(msg),
         }
     }
 }
@@ -51,6 +55,8 @@ impl Keypair {
             KeyType::Secp256k1 => {
                 Self::Secp256k1(secp256k1::Keypair::generate(key_tag.network, csprng))
             }
+            #[cfg(feature = "rsa")]
+            KeyType::Rsa => Self::Rsa(Box::new(rsa::Keypair::generate(key_tag.network, csprng))),
         }
     }
 
@@ -69,6 +75,11 @@ impl Keypair {
                 key_tag.network,
                 entropy,
             )?)),
+            #[cfg(feature = "rsa")]
+            KeyType::Rsa => Ok(Self::Rsa(Box::new(rsa::Keypair::generate_from_entropy(
+                key_tag.network,
+                entropy,
+            )?))),
         }
     }
 
@@ -81,6 +92,8 @@ impl Keypair {
             Self::Ecc608(keypair) => keypair.key_tag(),
             #[cfg(feature = "tpm")]
             Self::TPM(keypair) => keypair.key_tag(),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => keypair.key_tag(),
         }
     }
 
@@ -93,6 +106,8 @@ impl Keypair {
             Self::Ecc608(keypair) => &keypair.public_key,
             #[cfg(feature = "tpm")]
             Self::TPM(keypair) => &keypair.public_key,
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => &keypair.public_key,
         }
     }
 
@@ -112,6 +127,8 @@ impl Keypair {
             Self::Secp256k1(keypair) => keypair.to_vec(),
             Self::Ed25519(keypair) => keypair.to_vec(),
             Self::EccCompact(keypair) => keypair.to_vec(),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => keypair.to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
@@ -124,6 +141,8 @@ impl Keypair {
             Self::Secp256k1(keypair) => keypair.secret_to_vec(),
             Self::Ed25519(keypair) => keypair.secret_to_vec(),
             Self::EccCompact(keypair) => keypair.secret_to_vec(),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => keypair.secret_to_vec(),
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
@@ -135,6 +154,13 @@ impl Keypair {
 impl From<secp256k1::Keypair> for Keypair {
     fn from(keypair: secp256k1::Keypair) -> Self {
         Self::Secp256k1(keypair)
+    }
+}
+
+#[cfg(feature = "rsa")]
+impl From<rsa::Keypair> for Keypair {
+    fn from(keypair: rsa::Keypair) -> Self {
+        Self::Rsa(Box::new(keypair))
     }
 }
 
@@ -172,6 +198,8 @@ impl TryFrom<&[u8]> for Keypair {
             KeyType::Secp256k1 => Ok(secp256k1::Keypair::try_from(input)?.into()),
             KeyType::Ed25519 => Ok(ed25519::Keypair::try_from(input)?.into()),
             KeyType::EccCompact => Ok(ecc_compact::Keypair::try_from(input)?.into()),
+            #[cfg(feature = "rsa")]
+            KeyType::Rsa => Ok(rsa::Keypair::try_from(input)?.into()),
             #[cfg(feature = "multisig")]
             KeyType::MultiSig => Err(Error::invalid_keytype(input[0])),
         }
