@@ -12,10 +12,10 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PublicKey(RsaPublicKey);
+pub struct PublicKey(pub(crate) RsaPublicKey);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Signature(Vec<u8>);
+pub struct Signature(pub(crate) Vec<u8>);
 
 pub struct Keypair {
     pub network: Network,

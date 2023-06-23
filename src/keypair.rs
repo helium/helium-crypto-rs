@@ -20,6 +20,8 @@ pub enum Keypair {
     TPM(tpm::Keypair),
     #[cfg(feature = "rsa")]
     Rsa(Box<rsa::Keypair>),
+    #[cfg(feature = "tz")]
+    TrustZone(tz::Keypair),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -36,6 +38,8 @@ impl Sign for Keypair {
             Self::TPM(keypair) => keypair.sign(msg),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.sign(msg),
+            #[cfg(feature = "tz")]
+            Self::TrustZone(keypair) => keypair.sign(msg),
         }
     }
 }
@@ -94,6 +98,8 @@ impl Keypair {
             Self::TPM(keypair) => keypair.key_tag(),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.key_tag(),
+            #[cfg(feature = "tz")]
+            Self::TrustZone(keypair) => keypair.key_tag(),
         }
     }
 
@@ -108,6 +114,8 @@ impl Keypair {
             Self::TPM(keypair) => &keypair.public_key,
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => &keypair.public_key,
+            #[cfg(feature = "tz")]
+            Self::TrustZone(keypair) => &keypair.public_key,
         }
     }
 
@@ -133,6 +141,8 @@ impl Keypair {
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
             Self::TPM(_) => panic!("not supported"),
+            #[cfg(feature = "tz")]
+            Self::TrustZone(_) => panic!("not supported"),
         }
     }
 
@@ -147,6 +157,8 @@ impl Keypair {
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
             Self::TPM(_) => panic!("not supported"),
+            #[cfg(feature = "tz")]
+            Self::TrustZone(_) => panic!("not supported"),
         }
     }
 }
@@ -161,6 +173,13 @@ impl From<secp256k1::Keypair> for Keypair {
 impl From<rsa::Keypair> for Keypair {
     fn from(keypair: rsa::Keypair) -> Self {
         Self::Rsa(Box::new(keypair))
+    }
+}
+
+#[cfg(feature = "tz")]
+impl From<tz::Keypair> for Keypair {
+    fn from(keypair: tz::Keypair) -> Self {
+        Self::TrustZone(keypair)
     }
 }
 
@@ -352,6 +371,14 @@ mod tests {
         let keypair = tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey").unwrap();
 
         sign_test_keypair(&Keypair::TPM(keypair));
+    }
+
+    #[cfg(feature = "tz")]
+    #[test]
+    fn sign_tz() {
+        let keypair = tz::Keypair::from_key_path(Network::MainNet, "/tmp/rsa_key_blob").unwrap();
+
+        sign_test_keypair(&Keypair::TrustZone(keypair));
     }
 
     #[test]
