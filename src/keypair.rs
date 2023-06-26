@@ -20,8 +20,8 @@ pub enum Keypair {
     TPM(tpm::Keypair),
     #[cfg(feature = "rsa")]
     Rsa(Box<rsa::Keypair>),
-    #[cfg(feature = "tz")]
-    TrustZone(tz::Keypair),
+    #[cfg(feature = "nova-tz")]
+    TrustZone(nova_tz::Keypair),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -38,7 +38,7 @@ impl Sign for Keypair {
             Self::TPM(keypair) => keypair.sign(msg),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.sign(msg),
-            #[cfg(feature = "tz")]
+            #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => keypair.sign(msg),
         }
     }
@@ -98,7 +98,7 @@ impl Keypair {
             Self::TPM(keypair) => keypair.key_tag(),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.key_tag(),
-            #[cfg(feature = "tz")]
+            #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => keypair.key_tag(),
         }
     }
@@ -114,7 +114,7 @@ impl Keypair {
             Self::TPM(keypair) => &keypair.public_key,
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => &keypair.public_key,
-            #[cfg(feature = "tz")]
+            #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => &keypair.public_key,
         }
     }
@@ -141,7 +141,7 @@ impl Keypair {
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
             Self::TPM(_) => panic!("not supported"),
-            #[cfg(feature = "tz")]
+            #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
         }
     }
@@ -157,7 +157,7 @@ impl Keypair {
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
             Self::TPM(_) => panic!("not supported"),
-            #[cfg(feature = "tz")]
+            #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
         }
     }
@@ -176,9 +176,9 @@ impl From<rsa::Keypair> for Keypair {
     }
 }
 
-#[cfg(feature = "tz")]
-impl From<tz::Keypair> for Keypair {
-    fn from(keypair: tz::Keypair) -> Self {
+#[cfg(feature = "nova-tz")]
+impl From<nova_tz::Keypair> for Keypair {
+    fn from(keypair: nova_tz::Keypair) -> Self {
         Self::TrustZone(keypair)
     }
 }
@@ -373,10 +373,11 @@ mod tests {
         sign_test_keypair(&Keypair::TPM(keypair));
     }
 
-    #[cfg(feature = "tz")]
+    #[cfg(feature = "nova-tz")]
     #[test]
     fn sign_tz() {
-        let keypair = tz::Keypair::from_key_path(Network::MainNet, "/tmp/rsa_key_blob").unwrap();
+        let keypair =
+            nova_tz::Keypair::from_key_path(Network::MainNet, "/tmp/rsa_key_blob").unwrap();
 
         sign_test_keypair(&Keypair::TrustZone(keypair));
     }

@@ -40,8 +40,8 @@ pub mod tpm;
 #[cfg(feature = "rsa")]
 pub mod rsa;
 
-#[cfg(feature = "tz")]
-pub mod tz;
+#[cfg(feature = "nova-tz")]
+pub mod nova_tz;
 
 #[cfg(feature = "multisig")]
 pub mod multisig;

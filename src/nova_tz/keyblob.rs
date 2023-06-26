@@ -47,29 +47,23 @@ const RSA_IV_LENGTH: usize = 16;
 const RSA_HMAC_LENGTH: usize = 32;
 
 fn read_u32_le(data: &[u8], start: usize) -> (u32, usize) {
-    return (
+    (
         u32::from_le_bytes(data[start..start + 4].try_into().unwrap()),
-        start.clone() + 4,
-    );
+        start + 4,
+    )
 }
 
 fn read_u8_array_dynamic(data: &[u8], start: usize, maxsize: usize) -> (Vec<u8>, usize) {
     let size: usize = u32::from_le_bytes(
-        data[start + maxsize..start.clone() + maxsize.clone() + 4]
+        data[start + maxsize..start + maxsize + 4]
             .try_into()
             .unwrap(),
     ) as usize;
-    return (
-        data[start..start.clone() + size].to_vec(),
-        start.clone() + maxsize.clone() + 4,
-    );
+    (data[start..start + size].to_vec(), start + maxsize + 4)
 }
 
 fn read_u8_array(data: &[u8], start: usize, size: usize) -> (Vec<u8>, usize) {
-    return (
-        data[start..start.clone() + size].to_vec(),
-        start.clone() + size.clone(),
-    );
+    (data[start..start + size].to_vec(), start + size)
 }
 
 impl TryFrom<&[u8]> for KeyBlob {

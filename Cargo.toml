@@ -31,13 +31,15 @@ multihash = {version = "0.18", optional = true}
 sqlx = {version = "0", optional = true, default-features=false}
 solana-sdk = {version = ">= 1, < 2", optional = true }
 num-bigint-dig = "0"
+dynfmt = { version = "0", features = ["curly"] }
+uuid = { version = "1", features = ["v4", "fast-rng"] }
 
 [features]
 default = []
 ecc608 = [ "ecc608-linux" ]
 rsa = ["dep:rsa", "byteorder"]
 tpm = ["tss2", "libc", "drop_guard"]
-tz = ["rsa"]
+nova-tz = ["rsa"]
 multisig = ["multihash"]
 sqlx-postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
 solana = ["solana-sdk"]

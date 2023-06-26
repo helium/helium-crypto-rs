@@ -34,10 +34,10 @@ pub enum Error {
     #[error("TPM error")]
     TPM(#[from] crate::tpm::Error),
 
-    #[cfg(feature = "tz")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "tz")))]
+    #[cfg(feature = "nova-tz")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "nova-tz")))]
     #[error("TrustZone error")]
-    TrustZone(#[from] crate::tz::Error),
+    TrustZone(#[from] crate::nova_tz::Error),
 
     #[error("secp256k1 error")]
     Secp256k1(#[from] crate::secp256k1::Error),
