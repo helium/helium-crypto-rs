@@ -1,3 +1,6 @@
+use num_bigint_dig::BigUint;
+use rsa::RsaPublicKey;
+use std::array::TryFromSliceError;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 
@@ -5,8 +8,32 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Can't parse key blob: {0}")]
-    BadKeyBlob(String),
+    #[error("Key blob length is to small: {0}")]
+    KeyBlobLength(usize),
+
+    #[error("Magic number read failed")]
+    MagicNumber,
+
+    #[error("Version read failed")]
+    Version,
+
+    #[error("Digest padding read failed")]
+    DigestPadding,
+
+    #[error("Bad digest padding value: {0}")]
+    DigestPaddingValue(u32),
+
+    #[error("Modulus read failed")]
+    Modulus,
+
+    #[error("Public exponent read failed")]
+    PublicExponent,
+
+    #[error("Private exponent read failed")]
+    PrivateExponent,
+
+    #[error("Failed to create RsaPublicKey")]
+    RsaPublicKey,
 }
 
 pub enum DigestPadAlgo {
@@ -23,73 +50,74 @@ impl TryFrom<u32> for DigestPadAlgo {
             0 => Ok(DigestPadAlgo::RsaDigestPaddingNone),
             1 => Ok(DigestPadAlgo::RsaPkcs115Sha2_256),
             2 => Ok(DigestPadAlgo::RsaPssSha2_256),
-            _ => Err(Error::BadKeyBlob(format!(
-                "Bad digest padding algorithm {}",
-                value
-            ))),
+            _ => Err(Error::DigestPaddingValue(value)),
         }
     }
 }
 
-pub struct KeyBlob {
-    pub magic_num: u32,
-    pub version: u32,
-    pub digest_padding: DigestPadAlgo,
-    pub modulus: Vec<u8>,
-    pub public_exponent: Vec<u8>,
-    pub iv: Vec<u8>,
-    pub pvt_exponent: Vec<u8>,
-    pub hmac: Vec<u8>,
-}
-
+// Note (iegor.s): values are copied from qualcomm qseecom module
 const RSA_KEY_SIZE_MAX: usize = 512 + 16;
 const RSA_IV_LENGTH: usize = 16;
 const RSA_HMAC_LENGTH: usize = 32;
+const RSA_KEY_BLOB_LENGHT: usize = 1656;
 
-fn read_u32_le(data: &[u8], start: usize) -> (u32, usize) {
-    (
-        u32::from_le_bytes(data[start..start + 4].try_into().unwrap()),
-        start + 4,
+fn read_u32_le(buf: &[u8]) -> Result<(u32, &[u8]), TryFromSliceError> {
+    let (val_bytes, rest) = buf.split_at(4);
+    let parsed = u32::from_le_bytes(val_bytes.try_into()?);
+    Ok((parsed, rest))
+}
+
+fn read_u8_array_dynamic(
+    buf: &[u8],
+    maxsize: usize,
+) -> Result<(Vec<u8>, &[u8]), TryFromSliceError> {
+    let (arr_bytes, rest) = buf.split_at(maxsize);
+    let (arr_len, rest) = read_u32_le(rest)?;
+    let arr = arr_bytes[..arr_len as usize].to_vec();
+    Ok((arr, rest))
+}
+
+fn read_u8_array(buf: &[u8], size: usize) -> (Vec<u8>, &[u8]) {
+    let (arr_bytes, rest) = buf.split_at(size);
+    let arr = arr_bytes.to_vec();
+    (arr, rest)
+}
+
+pub fn parse_key_blob(buf: &[u8]) -> Result<RsaPublicKey, Error> {
+    // Key blobs are always exactly RSA_KEY_BLOB_LENGHT long, but
+    // let's tolerate extra.
+    if buf.len() < RSA_KEY_BLOB_LENGHT {
+        return Err(Error::KeyBlobLength(buf.len()));
+    }
+
+    let (_, rest) = read_u32_le(buf).map_err(|_| Error::MagicNumber)?;
+    let (_, rest) = read_u32_le(rest).map_err(|_| Error::Version)?;
+    let (digest_padding, rest) = read_u32_le(rest).map_err(|_| Error::DigestPadding)?;
+    let _ = DigestPadAlgo::try_from(digest_padding)?;
+    let (modulus, rest) =
+        read_u8_array_dynamic(rest, RSA_KEY_SIZE_MAX).map_err(|_| Error::Modulus)?;
+    let (public_exponent, rest) =
+        read_u8_array_dynamic(rest, RSA_KEY_SIZE_MAX).map_err(|_| Error::PublicExponent)?;
+    let (_, rest) = read_u8_array(rest, RSA_IV_LENGTH);
+    let (_, rest) =
+        read_u8_array_dynamic(rest, RSA_KEY_SIZE_MAX).map_err(|_| Error::PrivateExponent)?;
+    let (_, _) = read_u8_array(rest, RSA_HMAC_LENGTH);
+
+    RsaPublicKey::new(
+        BigUint::from_bytes_be(modulus.as_slice()),
+        BigUint::from_bytes_be(public_exponent.as_slice()),
     )
+    .map_err(|_| Error::RsaPublicKey)
 }
 
-fn read_u8_array_dynamic(data: &[u8], start: usize, maxsize: usize) -> (Vec<u8>, usize) {
-    let size: usize = u32::from_le_bytes(
-        data[start + maxsize..start + maxsize + 4]
-            .try_into()
-            .unwrap(),
-    ) as usize;
-    (data[start..start + size].to_vec(), start + maxsize + 4)
-}
+#[cfg(test)]
+mod tests {
+    use hex_literal::hex;
 
-fn read_u8_array(data: &[u8], start: usize, size: usize) -> (Vec<u8>, usize) {
-    (data[start..start + size].to_vec(), start + size)
-}
-
-impl TryFrom<&[u8]> for KeyBlob {
-    type Error = Error;
-
-    fn try_from(value: &[u8]) -> Result<Self, Error> {
-        let start = 0;
-        let (magic_num, start) = read_u32_le(value, start);
-        let (version, start) = read_u32_le(value, start);
-        let (digest_padding, start) = read_u32_le(value, start);
-        let digest_padding = DigestPadAlgo::try_from(digest_padding)?;
-        let (modulus, start) = read_u8_array_dynamic(value, start, RSA_KEY_SIZE_MAX);
-        let (public_exponent, start) = read_u8_array_dynamic(value, start, RSA_KEY_SIZE_MAX);
-        let (iv, start) = read_u8_array(value, start, RSA_IV_LENGTH);
-        let (pvt_exponent, start) = read_u8_array_dynamic(value, start, RSA_KEY_SIZE_MAX);
-        let (hmac, _) = read_u8_array(value, start, RSA_HMAC_LENGTH);
-
-        Ok(KeyBlob {
-            magic_num,
-            version,
-            digest_padding,
-            modulus,
-            public_exponent,
-            iv,
-            pvt_exponent,
-            hmac,
-        })
+    #[test]
+    fn verify_parse() {
+        const BLOB: &[u8] =
+            &hex!("AABBCCDD0000000001000000AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000AABBCCDD000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000AABBCCDDEEFF00112233445566778899AABBCCDDEEFF00112233445566778899");
+        assert!(super::parse_key_blob(BLOB).is_ok());
     }
 }

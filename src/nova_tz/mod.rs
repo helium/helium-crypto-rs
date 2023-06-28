@@ -2,35 +2,28 @@ mod keyblob;
 mod rsa_key;
 
 use crate::{public_key, rsa, KeyTag, KeyType, Network, Result, Sign};
-use ::rsa::RsaPublicKey;
-use std::fmt;
+use std::{fmt, io};
 
-extern crate num_bigint_dig as num_bigint;
-use num_bigint::BigUint;
-
-use crate::nova_tz::rsa_key::RsaKey;
+use crate::nova_tz::rsa_key::TzRsaKeyInfo;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("`{0}` returned error: {1}")]
-    TZError(&'static str, u32),
-
-    #[error("bad key path: {0}")]
-    BadKeyPath(String),
+    #[error("Error reading {0}: {1}")]
+    BadKeyPath(String, String),
 
     #[error("KeyBlob error")]
     KeyBlobError(#[from] keyblob::Error),
 
-    #[error("qseecom error: {0}")]
-    QseecomError(String),
+    #[error("qseecom error")]
+    QseecomError(#[from] io::Error),
 }
 
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,
     pub path: String,
-    key: RsaKey,
+    key: TzRsaKeyInfo,
 }
 
 impl PartialEq for Keypair {
@@ -56,18 +49,23 @@ impl Sign for Keypair {
 
 impl Keypair {
     pub fn from_key_path(network: Network, key_path: &str) -> Result<Keypair> {
-        let key = RsaKey::new(key_path)?;
-        let (modulus, public_exp) = key.public_key()?;
-        let public_key = RsaPublicKey::new(
-            BigUint::from_bytes_be(modulus.as_slice()),
-            BigUint::from_bytes_be(public_exp.as_slice()),
-        )?;
+        let key = TzRsaKeyInfo::from_path(key_path)?;
+        Keypair::from_rsa_key(network, key)
+    }
+
+    pub fn from_key_blob(network: Network, key_blob_data: &[u8]) -> Result<Keypair> {
+        let key = TzRsaKeyInfo::from_key_blob_data(key_blob_data)?;
+        Keypair::from_rsa_key(network, key)
+    }
+
+    fn from_rsa_key(network: Network, key: TzRsaKeyInfo) -> Result<Keypair> {
+        let public_key = key.public_key()?;
 
         Ok(Keypair {
             network,
             public_key: public_key::PublicKey::for_network(network, rsa::PublicKey(public_key)),
-            path: key_path.to_string(),
-            key: RsaKey::new(key_path)?,
+            path: "blob".to_string(),
+            key,
         })
     }
 

@@ -236,6 +236,12 @@ impl Deref for SharedSecret {
 mod tests {
     use super::*;
     use rand::rngs::OsRng;
+    #[cfg(feature = "nova-tz")]
+    use {
+        std::fs,
+        std::io::{Read, Write},
+        tempfile,
+    };
 
     fn bytes_roundtrip(key_tag: KeyTag) {
         let keypair = Keypair::generate(key_tag, &mut OsRng);
@@ -376,8 +382,19 @@ mod tests {
     #[cfg(feature = "nova-tz")]
     #[test]
     fn sign_tz() {
+        let mut tmpfile = tempfile::tempfile().unwrap();
+        tmpfile
+            .write_all(
+                fs::read("/sys/rsa_sec_key/rsa_generate")
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap();
+        let mut key_blob_data: Vec<u8> = vec![];
+        tmpfile.read_to_end(&mut key_blob_data).unwrap();
+
         let keypair =
-            nova_tz::Keypair::from_key_path(Network::MainNet, "/tmp/rsa_key_blob").unwrap();
+            nova_tz::Keypair::from_key_blob(Network::MainNet, key_blob_data.as_slice()).unwrap();
 
         sign_test_keypair(&Keypair::TrustZone(keypair));
     }
