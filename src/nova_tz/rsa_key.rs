@@ -61,7 +61,8 @@ impl TzRsaKeyInfo {
     }
 
     fn remove_key(&self) -> Result {
-        fs::write(TzRsaKeyInfo::NOVA_RSA_REMOVE_PATH, &self.key_name).unwrap();
+        fs::write(TzRsaKeyInfo::NOVA_RSA_REMOVE_PATH, &self.key_name)
+            .map_err(Error::QseecomError)?;
         Ok(())
     }
 }
