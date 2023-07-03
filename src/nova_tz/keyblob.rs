@@ -11,17 +11,8 @@ pub enum Error {
     #[error("Key blob length is to small: {0}")]
     KeyBlobLength(usize),
 
-    #[error("Magic number read failed")]
-    MagicNumber,
-
-    #[error("Version read failed")]
-    Version,
-
-    #[error("Digest padding read failed")]
-    DigestPadding,
-
     #[error("Bad digest padding value: {0}")]
-    DigestPaddingValue(u32),
+    DigestPadding(u32),
 
     #[error("Modulus read failed")]
     Modulus,
@@ -29,17 +20,11 @@ pub enum Error {
     #[error("Public exponent read failed")]
     PublicExponent,
 
-    #[error("Initial vector read failed")]
-    InitialVector,
-
     #[error("Private exponent read failed")]
     PrivateExponent,
 
-    #[error("HMAC length read failed")]
-    HmacLength,
-
     #[error("Failed to create RsaPublicKey")]
-    RsaPublicKey,
+    RsaPublicKey(#[from] rsa::errors::Error),
 }
 
 pub enum DigestPadAlgo {
@@ -56,7 +41,7 @@ impl TryFrom<u32> for DigestPadAlgo {
             0 => Ok(DigestPadAlgo::RsaDigestPaddingNone),
             1 => Ok(DigestPadAlgo::RsaPkcs115Sha2_256),
             2 => Ok(DigestPadAlgo::RsaPssSha2_256),
-            _ => Err(Error::DigestPaddingValue(value)),
+            _ => Err(Error::DigestPadding(value)),
         }
     }
 }
@@ -77,56 +62,56 @@ pub fn parse_key_blob(buf: &[u8]) -> Result<RsaPublicKey, Error> {
     let mut data = Cursor::new(buf);
     let _ = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::MagicNumber)?;
+        .expect("expected magic number");
     let _ = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::Version)?;
+        .expect("expected version number");
     let digest_padding = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::DigestPadding)?;
+        .expect("expected digest padding");
     let _ = DigestPadAlgo::try_from(digest_padding)?;
     let mut modulus = vec![0u8; RSA_KEY_SIZE_MAX];
-    data.read(modulus.as_mut_slice())
-        .map_err(|_| Error::Modulus)?;
+    data.read_exact(modulus.as_mut_slice())
+        .expect("expected modulus");
     let modulus_len = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::Modulus)?;
+        .expect("expected modulus length");
     if modulus_len > RSA_KEY_SIZE_MAX as u32 {
         return Err(Error::Modulus);
     }
     modulus.truncate(modulus_len as usize);
     let mut public_exponent = vec![0u8; RSA_KEY_SIZE_MAX];
-    data.read(public_exponent.as_mut_slice())
-        .map_err(|_| Error::PublicExponent)?;
+    data.read_exact(public_exponent.as_mut_slice())
+        .expect("expected public exponent");
     let public_exponent_len = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::PublicExponent)?;
+        .expect("expected public exponent length");
     if public_exponent_len > RSA_KEY_SIZE_MAX as u32 {
         return Err(Error::PublicExponent);
     }
     public_exponent.truncate(public_exponent_len as usize);
     let mut iv = vec![0u8; RSA_IV_LENGTH];
-    data.read(iv.as_mut_slice())
-        .map_err(|_| Error::InitialVector)?;
+    data.read_exact(iv.as_mut_slice())
+        .expect("expected initial vector");
     let mut private_exponent = vec![0u8; RSA_KEY_SIZE_MAX];
-    data.read(private_exponent.as_mut_slice())
-        .map_err(|_| Error::PrivateExponent)?;
+    data.read_exact(private_exponent.as_mut_slice())
+        .expect("expected private exponent");
     let private_exponent_len = data
         .read_u32::<LittleEndian>()
-        .map_err(|_| Error::PrivateExponent)?;
+        .expect("expected private exponent length");
     if private_exponent_len > RSA_KEY_SIZE_MAX as u32 {
         return Err(Error::PrivateExponent);
     }
     private_exponent.truncate(private_exponent_len as usize);
     let mut hmac_length = vec![0u8; RSA_HMAC_LENGTH];
-    data.read(hmac_length.as_mut_slice())
-        .map_err(|_| Error::HmacLength)?;
+    data.read_exact(hmac_length.as_mut_slice())
+        .expect("expected hmac length");
 
     RsaPublicKey::new(
         BigUint::from_bytes_be(modulus.as_slice()),
         BigUint::from_bytes_be(public_exponent.as_slice()),
     )
-    .map_err(|_| Error::RsaPublicKey)
+    .map_err(Error::RsaPublicKey)
 }
 
 #[cfg(test)]

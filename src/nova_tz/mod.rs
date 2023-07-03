@@ -2,6 +2,7 @@ mod keyblob;
 mod rsa_key;
 
 use crate::{public_key, rsa, KeyTag, KeyType, Network, Result, Sign};
+use std::path::Path;
 use std::{fmt, io};
 
 use crate::nova_tz::rsa_key::TzRsaKeyInfo;
@@ -48,7 +49,7 @@ impl Sign for Keypair {
 }
 
 impl Keypair {
-    pub fn from_key_path(network: Network, key_path: &str) -> Result<Keypair> {
+    pub fn from_key_path(network: Network, key_path: &Path) -> Result<Keypair> {
         let key = TzRsaKeyInfo::from_path(key_path)?;
         Keypair::from_rsa_key(network, key)
     }

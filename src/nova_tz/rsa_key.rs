@@ -16,15 +16,18 @@ impl TzRsaKeyInfo {
     const NOVA_RSA_ADD_PATH: &'static str = "/sys/nova-rsa/add";
     const NOVA_RSA_REMOVE_PATH: &'static str = "/sys/nova-rsa/remove";
 
-    pub fn from_path(key_path: &str) -> Result<Self> {
-        if !Path::new(key_path).exists() {
-            return Err(
-                Error::BadKeyPath(key_path.to_string(), "file doesn't exist".to_string()).into(),
-            );
+    pub fn from_path(key_path: &Path) -> Result<Self> {
+        if !key_path.exists() {
+            return Err(Error::BadKeyPath(
+                key_path.to_string_lossy().to_string(),
+                "file doesn't exist".to_string(),
+            )
+            .into());
         }
 
-        let key_blob_data = fs::read(key_path)
-            .map_err(|e| Error::BadKeyPath(key_path.to_string(), e.to_string()))?;
+        let key_blob_data = fs::read(key_path).map_err(|e| {
+            Error::BadKeyPath(key_path.to_string_lossy().to_string(), e.to_string())
+        })?;
 
         TzRsaKeyInfo::from_key_blob_data(key_blob_data.as_slice())
     }
