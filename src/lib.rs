@@ -40,6 +40,9 @@ pub mod tpm;
 #[cfg(feature = "rsa")]
 pub mod rsa;
 
+#[cfg(feature = "nova-tz")]
+pub mod nova_tz;
+
 #[cfg(feature = "multisig")]
 pub mod multisig;
 
@@ -51,6 +54,7 @@ pub mod public_key;
 pub mod public_key_binary;
 
 mod keypair;
+
 pub use error::{Error, Result};
 pub use keypair::{Keypair, Sign};
 pub use public_key::{PublicKey, PublicKeySize, Verify};
