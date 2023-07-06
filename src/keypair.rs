@@ -225,6 +225,24 @@ impl TryFrom<&[u8]> for Keypair {
     }
 }
 
+impl WriteTo for Keypair {
+    fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
+        match self {
+            Self::Secp256k1(keypair) => keypair.write_to(output),
+            Self::Ed25519(keypair) => keypair.write_to(output),
+            Self::EccCompact(keypair) => keypair.write_to(output),
+            #[cfg(feature = "rsa")]
+            Self::Rsa(keypair) => keypair.write_to(output),
+            #[cfg(feature = "ecc608")]
+            Self::Ecc608(_) => panic!("not supported"),
+            #[cfg(feature = "tpm")]
+            Self::TPM(_) => panic!("not supported"),
+            #[cfg(feature = "nova-tz")]
+            Self::TrustZone(_) => panic!("not supported"),
+        }
+    }
+}
+
 impl Deref for SharedSecret {
     type Target = ecc_compact::SharedSecret;
     fn deref(&self) -> &Self::Target {
