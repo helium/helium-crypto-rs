@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use num_bigint_dig::BigUint;
-use rsa::RsaPublicKey;
+use rsa::RSAPublicKey;
 use std::convert::TryFrom;
 use std::io::{Cursor, Read};
 
@@ -23,8 +23,8 @@ pub enum Error {
     #[error("Private exponent read failed")]
     PrivateExponent,
 
-    #[error("Failed to create RsaPublicKey")]
-    RsaPublicKey(#[from] rsa::errors::Error),
+    #[error("Failed to create RSAPublicKey")]
+    RSAPublicKey(#[from] rsa::errors::Error),
 }
 
 pub enum DigestPadAlgo {
@@ -52,7 +52,7 @@ const RSA_IV_LENGTH: usize = 16;
 const RSA_HMAC_LENGTH: usize = 32;
 const RSA_KEY_BLOB_LENGHT: usize = 1656;
 
-pub fn parse_key_blob(buf: &[u8]) -> Result<RsaPublicKey, Error> {
+pub fn parse_key_blob(buf: &[u8]) -> Result<RSAPublicKey, Error> {
     // Key blobs are always exactly RSA_KEY_BLOB_LENGHT long, but
     // let's tolerate extra.
     if buf.len() < RSA_KEY_BLOB_LENGHT {
@@ -107,11 +107,11 @@ pub fn parse_key_blob(buf: &[u8]) -> Result<RsaPublicKey, Error> {
     data.read_exact(hmac_length.as_mut_slice())
         .expect("expected hmac length");
 
-    RsaPublicKey::new(
+    RSAPublicKey::new(
         BigUint::from_bytes_be(modulus.as_slice()),
         BigUint::from_bytes_be(public_exponent.as_slice()),
     )
-    .map_err(Error::RsaPublicKey)
+    .map_err(Error::RSAPublicKey)
 }
 
 #[cfg(test)]

@@ -1,14 +1,14 @@
 use crate::nova_tz::keyblob;
 use crate::nova_tz::Error;
 use crate::nova_tz::Result;
-use rsa::RsaPublicKey;
+use rsa::RSAPublicKey;
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
 pub struct TzRsaKeyInfo {
     key_name: String,
-    rsa_key: RsaPublicKey,
+    rsa_key: RSAPublicKey,
 }
 
 impl TzRsaKeyInfo {
@@ -46,7 +46,7 @@ impl TzRsaKeyInfo {
         Ok(TzRsaKeyInfo { key_name, rsa_key })
     }
 
-    pub fn public_key(&self) -> Result<RsaPublicKey> {
+    pub fn public_key(&self) -> Result<RSAPublicKey> {
         Ok(self.rsa_key.clone())
     }
 
