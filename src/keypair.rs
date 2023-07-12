@@ -260,10 +260,10 @@ mod tests {
 
     fn sign_test_keypair(key_pair: &Keypair) {
         let signature = key_pair.sign(b"hello world").expect("signature");
-        assert!(key_pair
+        key_pair
             .public_key()
             .verify(b"hello world", &signature)
-            .is_ok())
+            .expect("roundtrip signatures should always verify");
     }
 
     fn ecdh_test_tag(key_tag: KeyTag) {

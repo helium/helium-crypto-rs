@@ -297,10 +297,10 @@ mod tests {
     fn sign_roundtrip() {
         let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
-        assert!(keypair
+        keypair
             .public_key
             .verify(b"hello world", &signature)
-            .is_ok())
+            .expect("roundtrip signatures should always verify");
     }
 
     #[test]
@@ -323,10 +323,13 @@ mod tests {
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         const SIG: &[u8] =
             &hex!("3045022100b72de78c39ecdb7db78429362bcdea509cd414dc75c84303d8b7128d864600d002204b857cc29ab999b2b7df9c8c2ab25678787d5632c6aa98227b444aaa9b42df3b");
-        assert!(public_key.verify(MSG, SIG).is_ok());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
+    #[should_panic]
     fn verify_invalid_sig() {
         // Test a msg signed and verified with a keypair generated with erlang crypto
         // and compressed by hand but with a truncated signature
@@ -334,7 +337,9 @@ mod tests {
         const PUBKEY: &str = "1SpLY6fic4fGthLGjeAUdLVNVYk1gJGrWTGhsukm2dnELaSEQmhL";
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         const SIG: &[u8] = &hex!("3045022100b72de78c39ecdb7db78429362bcdea509cd414");
-        assert!(public_key.verify(MSG, SIG).is_err());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
@@ -349,7 +354,9 @@ mod tests {
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         const SIG: &[u8] =
             &hex!("304502205fa60e66389d90894fa65f47cd50eae6486bfcb8c80ae6209a90a380e46343250221008902ac3932100615ad4db3eecb89a86da8bd97eefb357c5226952b7b3c4aa385");
-        assert!(public_key.verify(MSG, SIG).is_ok());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
