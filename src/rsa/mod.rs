@@ -186,8 +186,8 @@ impl ReadFrom for PublicKey {
 
 impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(&self.0.n().to_bytes_be());
-        state.write(&self.0.e().to_bytes_be());
+        self.0.n().hash(state);
+        self.0.e().hash(state);
     }
 }
 
