@@ -73,4 +73,4 @@ jobs:
           cargo tarpaulin --no-dead-code --engine llvm --features multisig,solana -- --test-threads 1
 
       - name: Test | Report
-        uses: codecov/codecov-action@v1.2.1
+        uses: codecov/codecov-action@v3
