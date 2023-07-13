@@ -34,12 +34,15 @@ impl fmt::Debug for Keypair {
     }
 }
 
+const PADDING_SCHEME: ::rsa::PaddingScheme = ::rsa::PaddingScheme::PKCS1v15Sign {
+    hash: Some(::rsa::hash::Hash::SHA2_256),
+};
+
 impl Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use sha2::Digest;
-        let scheme = ::rsa::PaddingScheme::PKCS1v15Sign { hash: None };
         let digest = sha2::Sha256::digest(msg);
-        let signature = self.secret.sign(scheme, &digest)?;
+        let signature = self.secret.sign(PADDING_SCHEME, &digest)?;
         Ok(signature)
     }
 }
@@ -139,9 +142,8 @@ impl Ord for PublicKey {
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use sha2::Digest;
-        let scheme = ::rsa::PaddingScheme::PKCS1v15Sign { hash: None };
         let hashed = sha2::Sha256::digest(msg);
-        self.0.verify(scheme, &hashed, signature)?;
+        self.0.verify(PADDING_SCHEME, &hashed, signature)?;
         Ok(())
     }
 }
