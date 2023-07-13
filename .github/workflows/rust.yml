@@ -44,6 +44,8 @@ jobs:
     steps:
       - name: Setup | Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Setup | Tarpaulin
         uses: jaxxstorm/action-install-gh-release@v1.9.0
@@ -68,7 +70,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
         run: |
-          cargo tarpaulin --features multisig,solana -- --test-threads 1
+          cargo tarpaulin --no-dead-code --engine llvm --features multisig,solana -- --test-threads 1
 
       - name: Test | Report
         uses: codecov/codecov-action@v1.2.1
