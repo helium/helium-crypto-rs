@@ -1,8 +1,9 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use num_bigint_dig::BigUint;
-use rsa::RSAPublicKey;
-use std::convert::TryFrom;
-use std::io::{Cursor, Read};
+use rsa::{BigUint, RSAPublicKey};
+use std::{
+    convert::TryFrom,
+    io::{Cursor, Read},
+};
 
 use thiserror::Error;
 
