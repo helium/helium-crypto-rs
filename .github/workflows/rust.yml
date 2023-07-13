@@ -70,7 +70,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
         run: |
-          cargo tarpaulin --no-dead-code --engine llvm --features multisig,solana -- --test-threads 1
+          cargo tarpaulin --no-dead-code --engine llvm --out Xml --features multisig,solana -- --test-threads 1
 
       - name: Test | Report
         uses: codecov/codecov-action@v3
