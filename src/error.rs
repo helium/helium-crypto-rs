@@ -45,7 +45,7 @@ pub enum Error {
     #[cfg(feature = "rsa")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rsa")))]
     #[error("rsa error")]
-    Rsa(#[from] ::rsa::Error),
+    Rsa(#[from] ::rsa::errors::Error),
 }
 
 #[derive(Error, Debug)]

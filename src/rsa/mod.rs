@@ -1,9 +1,5 @@
 use crate::{public_key, Error, KeyTag, KeyType, Network, ReadFrom, Result, Sign, Verify, WriteTo};
-use ::rsa::{
-    pkcs8::{DecodePrivateKey, EncodePrivateKey},
-    traits::PublicKeyParts,
-    Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey,
-};
+use ::rsa::{PrivateKeyEncoding, PublicKey as _, PublicKeyParts, RSAPrivateKey, RSAPublicKey};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::{
     convert::TryFrom,
@@ -12,7 +8,7 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PublicKey(pub(crate) RsaPublicKey);
+pub struct PublicKey(pub(crate) RSAPublicKey);
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(pub(crate) Vec<u8>);
@@ -20,7 +16,7 @@ pub struct Signature(pub(crate) Vec<u8>);
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,
-    secret: RsaPrivateKey,
+    secret: RSAPrivateKey,
 }
 
 impl PartialEq for Keypair {
@@ -38,12 +34,15 @@ impl fmt::Debug for Keypair {
     }
 }
 
+const PADDING_SCHEME: ::rsa::PaddingScheme = ::rsa::PaddingScheme::PKCS1v15Sign {
+    hash: Some(::rsa::hash::Hash::SHA2_256),
+};
+
 impl Sign for Keypair {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use sha2::Digest;
-        let scheme = Pkcs1v15Sign::new::<sha2::Sha256>();
         let digest = sha2::Sha256::digest(msg);
-        let signature = self.secret.sign(scheme, &digest)?;
+        let signature = self.secret.sign(PADDING_SCHEME, &digest)?;
         Ok(signature)
     }
 }
@@ -52,7 +51,7 @@ impl TryFrom<&[u8]> for Keypair {
     type Error = Error;
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let secret = ::rsa::RsaPrivateKey::from_pkcs8_der(&input[1..]).map_err(rsa::Error::from)?;
+        let secret = ::rsa::RSAPrivateKey::from_pkcs8(&input[1..])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.to_public_key()));
         Ok(Keypair {
@@ -68,9 +67,9 @@ impl WriteTo for Keypair {
         output.write_all(&[u8::from(self.key_tag())])?;
         let document = self
             .secret
-            .to_pkcs8_der()
+            .to_pkcs8()
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-        output.write_all(document.as_bytes())
+        output.write_all(&document)
     }
 }
 
@@ -81,7 +80,7 @@ impl Keypair {
     {
         // This is ok to unwrap because we know the size of the key and the
         // library only returns an error when bits < 64
-        let secret = ::rsa::RsaPrivateKey::new(csprng, 2048).expect("key generation");
+        let secret = ::rsa::RSAPrivateKey::new(csprng, 2048).expect("key generation");
         let public_key = secret.to_public_key();
         Keypair {
             network,
@@ -91,7 +90,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = ::rsa::RsaPrivateKey::from_pkcs8_der(entropy).map_err(rsa::Error::from)?;
+        let secret = ::rsa::RSAPrivateKey::from_pkcs8(entropy)?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.to_public_key()));
         Ok(Keypair {
@@ -116,11 +115,7 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret
-            .to_pkcs8_der()
-            .expect("pkcs8 encoding")
-            .as_bytes()
-            .to_vec()
+        self.secret.to_pkcs8().expect("pkcs8 encoding").to_vec()
     }
 }
 
@@ -147,9 +142,8 @@ impl Ord for PublicKey {
 impl Verify for PublicKey {
     fn verify(&self, msg: &[u8], signature: &[u8]) -> Result {
         use sha2::Digest;
-        let scheme = Pkcs1v15Sign::new::<sha2::Sha256>();
         let hashed = sha2::Sha256::digest(msg);
-        self.0.verify(scheme, &hashed, signature)?;
+        self.0.verify(PADDING_SCHEME, &hashed, signature)?;
         Ok(())
     }
 }
@@ -185,14 +179,15 @@ impl ReadFrom for PublicKey {
 
         let n = rsa::BigUint::from_bytes_be(n_buf);
         let e = rsa::BigUint::from_bytes_be(e_buf);
-        let public_key = RsaPublicKey::new(n, e)?;
+        let public_key = RSAPublicKey::new(n, e)?;
         Ok(PublicKey(public_key))
     }
 }
 
 impl Hash for PublicKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
+        self.0.n().hash(state);
+        self.0.e().hash(state);
     }
 }
 
@@ -238,11 +233,11 @@ mod tests {
 
     #[test]
     fn verify() {
-        // Test a msg signed and verified with a keypair generated with erlang crypto
-        // and compressed by hand.
+        // Test a msg signed and verified with an external rsa library
         const MSG: &[u8] = b"hello world";
         const PUBKEY: &str = "1trSusebcQv2kJfLEUV1D4RQyHZyTfFkvFxWBUa1iv53eZKhyg1iDWGsWo89w8HzQBx3vzoeB85aDYK9w2oX1LdWdnrq5QL4M8iGDDacdp5FeSvXTwr6RB9Hv86qQSFT3ppdTSk6Jbe8eDK81NcNNrkhRXqfmH3CAHRCmrKwLcNBLzxo2a8hqQi1rsW8z9dJgWKMsx2cWoboaGgqrfsRC54WJuPWZwkRCmP7dHArxyWqibicaicBoq5yqW3QsTvxTXLHMUVXr59BQriu75QFiztCYiFjq13Qp6kVkFdXwZ5S2cSVZSsg9d1uB4eN3VK4wYefKFnR9qQT5S93CFFX9nXQx7wi5Z6MdAj1mmu6yZczCE";
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
+        assert_eq!(PUBKEY, public_key.to_string());
         const SIG: &[u8] =
             &hex!("315050906cd1d58e056e6d9cd0311621a3ad04a60f4b778803c53da335be8239592420cd1910b91fee50fca6d030150356bf86bbe7066b5476da5016f988ec58c1d25fe1d50651de839c897d8e07eb2612e77f44abceef14d40a3358aa93498cd0361516ea29684f94001ea1800beae9cb5a701b371bcbd556b26a125f8fe4b7e9fd4395f5ad1bc80f48c0d40de56d14b2cd2fe109b4ba9cd26fe06dd79d2c236364448873b6a0aeccff87dba44db49b3fb2adb9274c09480e4ee9f281b92314c0fd375e862d349f32f2479775e60c98e11fefc6d99908238862640f356aaa755922dc7932433c4a1ab256c114255651f6b17b3076e6b06b0b79093a7409f03b");
         assert!(public_key.verify(MSG, SIG).is_ok());
