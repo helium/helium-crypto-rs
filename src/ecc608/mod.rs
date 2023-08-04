@@ -45,7 +45,7 @@ impl keypair::Sign for Keypair {
     }
 }
 
-pub fn init(path: &str, address: u16, config: EccConfig) -> Result {
+pub fn init(path: &str, address: u16, config: Option<EccConfig>) -> Result {
     if INIT.is_completed() {
         return Ok(());
     }
