@@ -10,31 +10,43 @@ readme = "README.md"
 
 [dependencies]
 thiserror = "1"
-bs58 = {version = "0.5", features=["check"]}
+bs58 = { version = "0.5", features = ["check"] }
 base64 = ">=0.21"
 drop_guard = { version = "0.3.0", optional = true }
 signature = "1"
-serde =  {version = "1", features=["derive"]}
+serde = { version = "1", features = ["derive"] }
 rand_core = "^0.6"
 getrandom = "0"
-sha2 = {version = "0.10", default-features=false, features=["std", "oid"] }
-ed25519-compact = {version = "2", features = ["std", "traits"] }
-p256 = { version="0.10", default-features=false, features=["arithmetic", "ecdsa", "sha256", "ecdh"] }
-k256 = { version="0.10", default-features=false, features=["arithmetic", "ecdsa", "sha256", "ecdh"] }
-rsa = { version="0.4", optional = true, default-features=false, features=["std"] }
-ecc608-linux = { version = "0", optional = true}
-tss2 = {version = "0", optional = true}
+sha2 = { version = "0.10", default-features = false, features = ["std", "oid"] }
+ed25519-compact = { version = "2", features = ["std", "traits"] }
+p256 = { version = "0.10", default-features = false, features = [
+    "arithmetic",
+    "ecdsa",
+    "sha256",
+    "ecdh",
+] }
+k256 = { version = "0.10", default-features = false, features = [
+    "arithmetic",
+    "ecdsa",
+    "sha256",
+    "ecdh",
+] }
+rsa = { version = "0.4", optional = true, default-features = false, features = [
+    "std",
+] }
+ecc608-linux = { git = "https://github.com/helium/ecc608-linux-rs.git", branch = "madninja/ecc_config", optional = true }
+tss2 = { version = "0", optional = true }
 lazy_static = "1.4.0"
-libc = {version = "0", optional = true}
-byteorder = {version = "1", optional = true}
-multihash = {version = "0.18", optional = true}
-sqlx = {version = "0", optional = true, default-features=false}
-solana-sdk = {version = ">= 1, < 2", optional = true }
+libc = { version = "0", optional = true }
+byteorder = { version = "1", optional = true }
+multihash = { version = "0.18", optional = true }
+sqlx = { version = "0", optional = true, default-features = false }
+solana-sdk = { version = ">= 1, < 2", optional = true }
 uuid = { version = "1", features = ["v4", "fast-rng"], optional = true }
 
 [features]
 default = ["rsa"]
-ecc608 = [ "ecc608-linux" ]
+ecc608 = ["ecc608-linux"]
 rsa = ["dep:rsa", "byteorder"]
 tpm = ["tss2", "libc", "drop_guard"]
 nova-tz = ["rsa", "uuid"]
