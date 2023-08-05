@@ -3,7 +3,8 @@ use crate::{
     keypair, public_key, Error, KeyTag, KeyType as CrateKeyType, Network, Result,
 };
 pub use ecc608_linux::{
-    address, key_config, slot_config, Ecc, KeyConfig, KeyType, SlotConfig, Zone, MAX_SLOT,
+    address, key_config, slot_config, Ecc, EccConfig, KeyConfig, KeyType, SlotConfig, Zone,
+    MAX_SLOT,
 };
 
 use p256::{ecdsa, elliptic_curve};
@@ -44,11 +45,11 @@ impl keypair::Sign for Keypair {
     }
 }
 
-pub fn init(path: &str, address: u16) -> Result {
+pub fn init(path: &str, address: u16, config: Option<EccConfig>) -> Result {
     if INIT.is_completed() {
         return Ok(());
     }
-    let ecc = ecc608_linux::Ecc::from_path(path, address)?;
+    let ecc = ecc608_linux::Ecc::from_path(path, address, config)?;
     INIT.call_once(|| *ECC.lock().unwrap() = Some(ecc));
     Ok(())
 }
