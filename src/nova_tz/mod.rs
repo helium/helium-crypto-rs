@@ -91,7 +91,9 @@ mod tests {
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         const SIG: &[u8] =
             &hex!("460adb3380bd8856c47176c3235f020c85b2067a7180fe40f3936ad572941d5340267577ad314443c64c3dee997aa1c0488fb2fd9b76d018e59a8b38dfe321cf6030fe65faa0bf9ab59565fb78baa37d1a85c33745c9852845791f75545904720d2e240bc6dbff12332d6dd4a411fb4b58f67653514eaf4219f0a37c6961b38f9351abb235f5b953f94ea2db225ecdd7b73e4bf4323034a91ef8c9f617eca338a69e70da3d0cf3bebf408c837a8c60924202f510e633ed36b156215cf21553edffb3fcd845f1884fce971b60c4d12096eea8513dfbf3c7a3027502b66492504c89f0ca72b5fcaff38cd5455286cf9b88827aec15943e03d69e21bbfa10671397");
-        assert!(public_key.verify(MSG, SIG).is_ok());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]

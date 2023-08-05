@@ -279,10 +279,10 @@ mod tests {
     fn sign_roundtrip() {
         let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
-        assert!(keypair
+        keypair
             .public_key
             .verify(b"hello world", &signature)
-            .is_ok())
+            .expect("roundtrip signatures should always verify");
     }
 
     #[test]
@@ -305,10 +305,13 @@ mod tests {
             &hex!("304402206d791eb96bcc7d0ef403bc7a653fd99a6906374ec9e4aff1d5907d4890e8dd3302204b4c93c7637b22565b944201df9c806d684165802b8a1cd91d4d7799c950e466");
 
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
-        assert!(public_key.verify(MSG, SIG).is_ok());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
+    #[should_panic]
     fn verify_invalid_sig() {
         // Test a msg signed and verified with a keypair generated with erlang
         // libp2p_crypto but with a truncated signature
@@ -317,7 +320,9 @@ mod tests {
         const SIG: &[u8] = &hex!("304402206d791eb96bcc7d0ef403bc7a653fd99a6906374ec9");
 
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
-        assert!(public_key.verify(MSG, SIG).is_err());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
@@ -328,10 +333,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn non_compact_key() {
         const NON_COMPACT_KEY: &[u8] =
             &hex!("003ca9d8667de0c07aa71d98b3c8065d2e97ab7bb9cb8776bcc0577a7ac58acd4e");
-        assert!(PublicKey::try_from(NON_COMPACT_KEY).is_err());
+        PublicKey::try_from(NON_COMPACT_KEY).expect("source bytes are not a public key");
     }
 
     #[test]

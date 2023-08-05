@@ -214,10 +214,10 @@ mod tests {
     fn sign_roundtrip() {
         let keypair = Keypair::generate(Network::MainNet, &mut OsRng);
         let signature = keypair.sign(b"hello world").expect("signature");
-        assert!(keypair
+        keypair
             .public_key
             .verify(b"hello world", &signature)
-            .is_ok())
+            .expect("roundtrip signatures should always verify");
     }
 
     #[test]
@@ -240,10 +240,13 @@ mod tests {
         assert_eq!(PUBKEY, public_key.to_string());
         const SIG: &[u8] =
             &hex!("315050906cd1d58e056e6d9cd0311621a3ad04a60f4b778803c53da335be8239592420cd1910b91fee50fca6d030150356bf86bbe7066b5476da5016f988ec58c1d25fe1d50651de839c897d8e07eb2612e77f44abceef14d40a3358aa93498cd0361516ea29684f94001ea1800beae9cb5a701b371bcbd556b26a125f8fe4b7e9fd4395f5ad1bc80f48c0d40de56d14b2cd2fe109b4ba9cd26fe06dd79d2c236364448873b6a0aeccff87dba44db49b3fb2adb9274c09480e4ee9f281b92314c0fd375e862d349f32f2479775e60c98e11fefc6d99908238862640f356aaa755922dc7932433c4a1ab256c114255651f6b17b3076e6b06b0b79093a7409f03b");
-        assert!(public_key.verify(MSG, SIG).is_ok());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
+    #[should_panic]
     fn verify_invalid_sig() {
         // Test a msg signed and verified with a keypair generated with erlang crypto
         // and compressed by hand but with a truncated signature
@@ -251,7 +254,9 @@ mod tests {
         const PUBKEY: &str = "1trSusebcQv2kJfLEUV1D4RQyHZyTfFkvFxWBUa1iv53eZKhyg1iDWGsWo89w8HzQBx3vzoeB85aDYK9w2oX1LdWdnrq5QL4M8iGDDacdp5FeSvXTwr6RB9Hv86qQSFT3ppdTSk6Jbe8eDK81NcNNrkhRXqfmH3CAHRCmrKwLcNBLzxo2a8hqQi1rsW8z9dJgWKMsx2cWoboaGgqrfsRC54WJuPWZwkRCmP7dHArxyWqibicaicBoq5yqW3QsTvxTXLHMUVXr59BQriu75QFiztCYiFjq13Qp6kVkFdXwZ5S2cSVZSsg9d1uB4eN3VK4wYefKFnR9qQT5S93CFFX9nXQx7wi5Z6MdAj1mmu6yZczCE";
         let public_key: crate::PublicKey = PUBKEY.parse().expect("b58 public key");
         const SIG: &[u8] = &hex!("3045022100b72de78c39ecdb7db78429362bcdea509cd414");
-        assert!(public_key.verify(MSG, SIG).is_err());
+        public_key
+            .verify(MSG, SIG)
+            .expect("precomputed signature should always verify");
     }
 
     #[test]
