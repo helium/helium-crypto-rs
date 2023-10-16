@@ -280,7 +280,7 @@ impl PartialEq for PublicKey {
 
 impl PartialOrd for PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.keys_digest.partial_cmp(&other.keys_digest)
+        Some(self.cmp(other))
     }
 }
 
