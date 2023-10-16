@@ -1,40 +1,54 @@
-mod tpm_wrapper;
+mod esys_wrapper;
 
 use crate::{
     ecc_compact, ecc_compact::Signature, error, keypair, public_key, KeyTag,
     KeyType as CrateKeyType, Network, Result,
 };
-use p256::{ecdsa, elliptic_curve::sec1::FromEncodedPoint};
-use sha2::{Digest, Sha256};
+use p256::elliptic_curve::sec1::FromEncodedPoint;
 use std::convert::{TryFrom, TryInto};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("function {0} returned error code {1}")]
-    TPMError(&'static str, u32),
+    #[error("esys wrapper error: {0}")]
+    TPMEsapiError(String),
 
     #[error("bad key path {0}")]
     BadKeyPath(String),
+
+    #[error("bad key handle {0}")]
+    BadKeyHandle(u32),
+
+    #[error("bad key type")]
+    BadKeyType(),
+
+    #[error("unexpected error: {0}")]
+    Other(String),
 }
 
-#[derive(PartialEq, Eq)]
-pub struct Keypair {
+impl From<tss_esapi::Error> for Error {
+    fn from(v: tss_esapi::Error) -> Self {
+        Self::TPMEsapiError(v.to_string())
+    }
+}
+
+#[derive(PartialEq)]
+pub struct KeypairHandle {
     pub network: Network,
     pub public_key: public_key::PublicKey,
-    pub path: String,
+    pub handle: u32,
 }
 
-impl std::fmt::Debug for Keypair {
+impl std::fmt::Debug for KeypairHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         f.debug_struct("Keypair")
-            .field("path", &self.path)
+            .field("handle", &self.handle)
             .field("public", &self.public_key)
             .finish()
     }
 }
 
-impl keypair::Sign for Keypair {
+impl keypair::Sign for KeypairHandle {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>> {
         use signature::Signer;
         let signature = self.try_sign(msg)?;
@@ -42,24 +56,24 @@ impl keypair::Sign for Keypair {
     }
 }
 
-impl Keypair {
-    pub fn from_key_path(network: Network, key_path: &str) -> Result<Keypair> {
+impl KeypairHandle {
+    pub fn from_key_handle(network: Network, key_handle: u32) -> Result<KeypairHandle> {
         let key_bytes = {
-            let mut key_bytes: Vec<u8> = Self::public_key(key_path)?;
+            let mut key_bytes: Vec<u8> = Self::public_key(key_handle)?;
             key_bytes.push(4);
             key_bytes.rotate_right(1);
             key_bytes
         };
         let public_key = ecc_compact::PublicKey::try_from(key_bytes.as_ref())?;
-        Ok(Keypair {
+        Ok(KeypairHandle {
             network,
             public_key: public_key::PublicKey::for_network(network, public_key),
-            path: key_path.to_string(),
+            handle: key_handle,
         })
     }
 
-    fn public_key(key_path: &str) -> Result<Vec<u8>> {
-        let res = tpm_wrapper::public_key(key_path)?;
+    fn public_key(key_handle: u32) -> Result<Vec<u8>> {
+        let res = esys_wrapper::public_key(key_handle)?;
         Ok(res)
     }
 
@@ -79,10 +93,10 @@ impl Keypair {
         let point = key.0.to_encoded_point(false);
         let x = point.x().unwrap().as_slice();
         let y = point.y().unwrap().as_slice();
-        let path = &self.path;
+        let key_handle = self.handle;
 
         let mut shared_secret_bytes = vec![4u8];
-        shared_secret_bytes.extend_from_slice(tpm_wrapper::ecdh(x, y, path)?.as_slice());
+        shared_secret_bytes.extend_from_slice(esys_wrapper::ecdh(x, y, key_handle)?.as_slice());
 
         let encoded_point = p256::EncodedPoint::from_bytes(shared_secret_bytes.as_slice())
             .map_err(p256::elliptic_curve::Error::from)?;
@@ -93,13 +107,10 @@ impl Keypair {
     }
 }
 
-impl signature::Signer<Signature> for Keypair {
+impl signature::Signer<Signature> for KeypairHandle {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
-        let digest = Sha256::digest(msg);
-        let sign_slice =
-            tpm_wrapper::sign(&self.path, &digest).map_err(signature::Error::from_source)?;
-
-        let signature = ecdsa::Signature::from_der(&sign_slice[..])?;
+        let signature =
+            esys_wrapper::sign(self.handle, msg).map_err(signature::Error::from_source)?;
         Ok(Signature(signature))
     }
 }

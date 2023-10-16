@@ -17,7 +17,7 @@ pub enum Keypair {
     #[cfg(feature = "ecc608")]
     Ecc608(ecc608::Keypair),
     #[cfg(feature = "tpm")]
-    TPM(tpm::Keypair),
+    TPMHandle(tpm::KeypairHandle),
     #[cfg(feature = "rsa")]
     Rsa(Box<rsa::Keypair>),
     #[cfg(feature = "nova-tz")]
@@ -35,7 +35,7 @@ impl Sign for Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.sign(msg),
             #[cfg(feature = "tpm")]
-            Self::TPM(keypair) => keypair.sign(msg),
+            Self::TPMHandle(keypair) => keypair.sign(msg),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.sign(msg),
             #[cfg(feature = "nova-tz")]
@@ -95,7 +95,7 @@ impl Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => keypair.key_tag(),
             #[cfg(feature = "tpm")]
-            Self::TPM(keypair) => keypair.key_tag(),
+            Self::TPMHandle(keypair) => keypair.key_tag(),
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => keypair.key_tag(),
             #[cfg(feature = "nova-tz")]
@@ -111,7 +111,7 @@ impl Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => &keypair.public_key,
             #[cfg(feature = "tpm")]
-            Self::TPM(keypair) => &keypair.public_key,
+            Self::TPMHandle(keypair) => &keypair.public_key,
             #[cfg(feature = "rsa")]
             Self::Rsa(keypair) => &keypair.public_key,
             #[cfg(feature = "nova-tz")]
@@ -125,7 +125,7 @@ impl Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             #[cfg(feature = "tpm")]
-            Self::TPM(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
+            Self::TPMHandle(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
             _ => Err(Error::invalid_curve()),
         }
     }
@@ -140,7 +140,7 @@ impl Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
-            Self::TPM(_) => panic!("not supported"),
+            Self::TPMHandle(_) => panic!("not supported"),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
         }
@@ -156,7 +156,7 @@ impl Keypair {
             #[cfg(feature = "ecc608")]
             Self::Ecc608(_) => panic!("not supported"),
             #[cfg(feature = "tpm")]
-            Self::TPM(_) => panic!("not supported"),
+            Self::TPMHandle(_) => panic!("not supported"),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
         }
@@ -203,9 +203,9 @@ impl From<ecc608::Keypair> for Keypair {
 }
 
 #[cfg(feature = "tpm")]
-impl From<tpm::Keypair> for Keypair {
-    fn from(keypair: tpm::Keypair) -> Self {
-        Self::TPM(keypair)
+impl From<tpm::KeypairHandle> for Keypair {
+    fn from(keypair: tpm::KeypairHandle) -> Self {
+        Self::TPMHandle(keypair)
     }
 }
 
@@ -370,10 +370,10 @@ mod tests {
 
     #[cfg(feature = "tpm")]
     #[test]
-    fn sign_tpm() {
-        let keypair = tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey").unwrap();
+    fn sign_tpm_handle() {
+        let keypair = tpm::KeypairHandle::from_key_handle(Network::MainNet, 0x81000031).unwrap();
 
-        sign_test_keypair(&Keypair::TPM(keypair));
+        sign_test_keypair(&Keypair::TPMHandle(keypair));
     }
 
     #[cfg(feature = "nova-tz")]
@@ -406,9 +406,9 @@ mod tests {
 
     #[cfg(feature = "tpm")]
     #[test]
-    fn ecdh_tpm() {
-        let keypair = tpm::Keypair::from_key_path(Network::MainNet, "HS/SRK/MinerKey").unwrap();
+    fn ecdh_tpm_handle() {
+        let keypair = tpm::KeypairHandle::from_key_handle(Network::MainNet, 0x81000031).unwrap();
 
-        ecdh_test_keypair(&Keypair::TPM(keypair));
+        ecdh_test_keypair(&Keypair::TPMHandle(keypair));
     }
 }
