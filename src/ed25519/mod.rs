@@ -100,11 +100,13 @@ impl Keypair {
 
 impl signature::Signature for Signature {
     fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(signature::Signature::from_bytes(input)?))
+        let signature =
+            ed25519_compact::Signature::try_from(input).map_err(signature::Error::from_source)?;
+        Ok(Signature(signature))
     }
 
     fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.0.as_ref()
     }
 }
 
@@ -138,7 +140,8 @@ impl signature::Signer<Signature> for Keypair {
 
 impl Signature {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+        let signature = ed25519_compact::Signature::try_from(bytes)?;
+        Ok(Signature(signature))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -150,9 +153,8 @@ impl TryFrom<&[u8]> for Signature {
     type Error = Error;
 
     fn try_from(input: &[u8]) -> Result<Self> {
-        signature::Signature::from_bytes(input)
-            .map(Signature)
-            .map_err(Error::from)
+        let signature = ed25519_compact::Signature::try_from(input)?;
+        Ok(Signature(signature))
     }
 }
 
