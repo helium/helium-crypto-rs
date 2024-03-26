@@ -1,10 +1,7 @@
 use crate::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use k256::{ecdsa, elliptic_curve::sec1::ToEncodedPoint};
-use std::{
-    convert::TryFrom,
-    hash::{Hash, Hasher},
-};
+use std::hash::Hasher;
 use thiserror::Error;
 
 #[derive(Debug, Clone)]

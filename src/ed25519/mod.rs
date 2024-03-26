@@ -1,8 +1,5 @@
 use crate::*;
-use std::{
-    convert::TryFrom,
-    hash::{Hash, Hasher},
-};
+use std::hash::Hasher;
 
 #[derive(Debug, Clone)]
 pub struct PublicKey(pub(crate) ed25519_compact::PublicKey);

@@ -3,7 +3,6 @@
 //! since a client will need to be able to parse and use a public key from any
 //! keypair.
 use crate::*;
-use std::{convert::TryFrom, hash::Hash};
 
 ///Verify a given message against a given signature slice. Public keys are
 ///expected to implemt this trait to verify signed messages.

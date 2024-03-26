@@ -4,11 +4,7 @@ use p256::{
     elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, DecompactPoint},
     FieldBytes,
 };
-use std::{
-    convert::TryFrom,
-    hash::{Hash, Hasher},
-    ops::Deref,
-};
+use std::{hash::Hasher, ops::Deref};
 
 #[derive(Debug, Clone)]
 pub struct PublicKey(pub(crate) p256::PublicKey);
