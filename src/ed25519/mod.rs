@@ -1,8 +1,5 @@
 use crate::*;
-use std::{
-    convert::TryFrom,
-    hash::{Hash, Hasher},
-};
+use std::hash::Hasher;
 
 #[derive(Debug, Clone)]
 pub struct PublicKey(pub(crate) ed25519_compact::PublicKey);
@@ -100,9 +97,10 @@ impl Keypair {
 
 impl signature::Signature for Signature {
     fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        let signature =
-            ed25519_compact::Signature::try_from(input).map_err(signature::Error::from_source)?;
-        Ok(Signature(signature))
+        Ok(Signature(
+            ed25519_compact::Signature::from_slice(input)
+                .map_err(|_| signature::Error::default())?,
+        ))
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -140,8 +138,7 @@ impl signature::Signer<Signature> for Keypair {
 
 impl Signature {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let signature = ed25519_compact::Signature::try_from(bytes)?;
-        Ok(Signature(signature))
+        Ok(Signature(ed25519_compact::Signature::from_slice(bytes)?))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -153,8 +150,9 @@ impl TryFrom<&[u8]> for Signature {
     type Error = Error;
 
     fn try_from(input: &[u8]) -> Result<Self> {
-        let signature = ed25519_compact::Signature::try_from(input)?;
-        Ok(Signature(signature))
+        ed25519_compact::Signature::from_slice(input)
+            .map(Signature)
+            .map_err(Error::from)
     }
 }
 
