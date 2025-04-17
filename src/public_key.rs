@@ -338,7 +338,7 @@ impl<'de> Deserialize<'de> for PublicKey {
     {
         struct PublicKeyVisitor;
 
-        impl<'de> Visitor<'de> for PublicKeyVisitor {
+        impl Visitor<'_> for PublicKeyVisitor {
             type Value = PublicKey;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
