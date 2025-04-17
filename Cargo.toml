@@ -45,7 +45,7 @@ solana-sdk = { version = ">= 2.2", optional = true }
 uuid = { version = "1", features = ["v4", "fast-rng"], optional = true }
 
 [features]
-default = ["rsa", "sqlx-postgres"]
+default = ["rsa"]
 ecc608 = ["ecc608-linux"]
 rsa = ["dep:rsa", "byteorder"]
 tpm = ["tss-esapi", "libc", "drop_guard"]
