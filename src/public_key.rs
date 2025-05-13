@@ -207,7 +207,10 @@ mod sqlx_postgres {
     }
 
     impl Encode<'_, Postgres> for PublicKey {
-        fn encode_by_ref(&self, buf: &mut PgArgumentBuffer) -> IsNull {
+        fn encode_by_ref(
+            &self,
+            buf: &mut PgArgumentBuffer,
+        ) -> std::result::Result<IsNull, BoxDynError> {
             let address = self.to_string();
             Encode::<Postgres>::encode(&address, buf)
         }
