@@ -65,10 +65,7 @@ impl TryFrom<&[u8]> for Keypair {
 impl WriteTo for Keypair {
     fn write_to<W: std::io::Write>(&self, output: &mut W) -> std::io::Result<()> {
         output.write_all(&[u8::from(self.key_tag())])?;
-        let document = self
-            .secret
-            .to_pkcs8()
-            .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
+        let document = self.secret.to_pkcs8().map_err(std::io::Error::other)?;
         output.write_all(&document)
     }
 }
