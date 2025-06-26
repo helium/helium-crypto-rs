@@ -95,19 +95,6 @@ impl Keypair {
     }
 }
 
-impl signature::Signature for Signature {
-    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(
-            ed25519_compact::Signature::from_slice(input)
-                .map_err(|_| signature::Error::default())?,
-        ))
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 impl AsRef<[u8]> for Signature {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
