@@ -18,13 +18,13 @@ serde = { version = "1", features = ["derive"] }
 rand_core = "^0.6"
 sha2 = { version = "0.10", default-features = false, features = ["std", "oid"] }
 ed25519-compact = { version = "2", features = ["std", "traits"] }
-p256 = { version = "0.10", default-features = false, features = [
+p256 = { version = "0.11", default-features = false, features = [
   "arithmetic",
   "ecdsa",
   "sha256",
   "ecdh",
 ] }
-k256 = { version = "0.10", default-features = false, features = [
+k256 = { version = "0.11", default-features = false, features = [
   "arithmetic",
   "ecdsa",
   "sha256",
