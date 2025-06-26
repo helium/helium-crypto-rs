@@ -1,7 +1,7 @@
 use crate::*;
 use p256::{
     ecdsa,
-    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, DecompactPoint},
+    elliptic_curve::{ecdh, point::DecompactPoint, sec1::ToCompactEncodedPoint},
     FieldBytes,
 };
 use std::{hash::Hasher, ops::Deref};
@@ -61,7 +61,7 @@ impl TryFrom<&[u8]> for Keypair {
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
         let secret =
-            p256::SecretKey::from_be_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
+            p256::SecretKey::from_slice(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
@@ -98,7 +98,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = p256::SecretKey::from_be_bytes(entropy)?;
+        let secret = p256::SecretKey::from_slice(entropy)?;
         let public_key = secret.public_key();
         if !public_key.is_compactable() {
             return Err(Error::not_compact());
@@ -133,7 +133,7 @@ impl Keypair {
         C: TryInto<&'a PublicKey, Error = Error>,
     {
         let public_key = public_key.try_into()?;
-        let secret_key = p256::SecretKey::from_be_bytes(&self.secret.to_bytes())?;
+        let secret_key = p256::SecretKey::from_slice(&self.secret.to_bytes())?;
         let shared_secret =
             ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), public_key.0.as_affine());
         Ok(SharedSecret(shared_secret))
