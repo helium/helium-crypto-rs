@@ -244,11 +244,11 @@ mod tests {
         use solana_sdk::signature as solana_sdk;
         use std::convert::TryInto;
 
-        let solana_wallet = solana_sdk::Keypair::from_bytes(&BYTES).unwrap();
+        let solana_wallet = solana_sdk::Keypair::try_from(&BYTES[..]).unwrap();
         let solana_pubkey = solana_sdk::Signer::pubkey(&solana_wallet);
 
         let entropy = &BYTES[..32];
-        let keypair = Keypair::generate_from_entropy(Network::MainNet, &entropy).expect("keypair");
+        let keypair = Keypair::generate_from_entropy(Network::MainNet, entropy).expect("keypair");
         let solana_pubkey_from_helium = keypair.public_key.try_into().unwrap();
         assert_eq!(solana_pubkey, solana_pubkey_from_helium);
     }
