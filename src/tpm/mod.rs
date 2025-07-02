@@ -101,8 +101,9 @@ impl KeypairHandle {
         let encoded_point = p256::EncodedPoint::from_bytes(shared_secret_bytes.as_slice())
             .map_err(p256::elliptic_curve::Error::from)?;
         let affine_point = p256::AffinePoint::from_encoded_point(&encoded_point).unwrap();
+
         Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(
-            &affine_point,
+            p256::elliptic_curve::point::AffineCoordinates::x(&affine_point),
         )))
     }
 }
