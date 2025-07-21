@@ -9,6 +9,10 @@ pub trait Sign {
     fn sign(&self, msg: &[u8]) -> Result<Vec<u8>>;
 }
 
+/// Represents a cryptographic keypair for any supported key type.
+///
+/// This enum acts as a type-erased wrapper for all supported keypair types (e.g., Ed25519, Secp256k1, ECC Compact, etc.),
+/// allowing generic handling of key generation, signing, and public key extraction.
 #[derive(PartialEq, Debug)]
 pub enum Keypair {
     Secp256k1(secp256k1::Keypair),
@@ -45,6 +49,17 @@ impl Sign for Keypair {
 }
 
 impl Keypair {
+    /// Generates a new keypair for the specified key type and network using the provided CSPRNG.
+    ///
+    /// # Arguments
+    /// * `key_tag` - The key tag specifying the network and key type.
+    /// * `csprng` - A cryptographically secure random number generator.
+    ///
+    /// # Returns
+    /// A new `Keypair` instance for the requested type and network.
+    ///
+    /// # Panics
+    /// Panics if the key type is not supported or if key generation fails.
     pub fn generate<R>(key_tag: KeyTag, csprng: &mut R) -> Keypair
     where
         R: rand_core::CryptoRng + rand_core::RngCore,
@@ -64,6 +79,17 @@ impl Keypair {
         }
     }
 
+    /// Generates a new keypair from the provided entropy for the specified key type and network.
+    ///
+    /// # Arguments
+    /// * `key_tag` - The key tag specifying the network and key type.
+    /// * `entropy` - A byte slice containing sufficient entropy for key generation.
+    ///
+    /// # Returns
+    /// A new `Keypair` instance if the entropy is valid for the requested type and network.
+    ///
+    /// # Errors
+    /// Returns an error if the entropy is invalid or the key type is not supported.
     pub fn generate_from_entropy(key_tag: KeyTag, entropy: &[u8]) -> Result<Keypair> {
         match key_tag.key_type {
             KeyType::EccCompact => Ok(Self::EccCompact(
@@ -87,6 +113,9 @@ impl Keypair {
         }
     }
 
+    /// Returns the key tag for this keypair, encoding the network and key type.
+    ///
+    /// The key tag is used to identify the network and cryptographic algorithm associated with this keypair.
     pub fn key_tag(&self) -> KeyTag {
         match self {
             Self::Secp256k1(keypair) => keypair.key_tag(),
@@ -103,6 +132,9 @@ impl Keypair {
         }
     }
 
+    /// Returns a reference to the public key associated with this keypair.
+    ///
+    /// The returned public key can be used for signature verification or key exchange.
     pub fn public_key(&self) -> &PublicKey {
         match self {
             Self::Secp256k1(keypair) => &keypair.public_key,
@@ -119,6 +151,16 @@ impl Keypair {
         }
     }
 
+    /// Performs an Elliptic Curve Diffie-Hellman (ECDH) key exchange with the given public key.
+    ///
+    /// # Arguments
+    /// * `public_key` - The peer's public key.
+    ///
+    /// # Returns
+    /// A shared secret if ECDH is supported for this key type.
+    ///
+    /// # Errors
+    /// Returns an error if ECDH is not supported for this key type or if the operation fails.
     pub fn ecdh(&self, public_key: &PublicKey) -> Result<SharedSecret> {
         match self {
             Self::EccCompact(keypair) => Ok(SharedSecret(keypair.ecdh(public_key)?)),
@@ -130,6 +172,10 @@ impl Keypair {
         }
     }
 
+    /// Serializes the keypair to its binary representation.
+    ///
+    /// # Returns
+    /// A vector of bytes containing the serialized keypair, including the key tag and secret key material.
     pub fn to_vec(&self) -> Vec<u8> {
         match self {
             Self::Secp256k1(keypair) => keypair.to_vec(),
@@ -146,6 +192,13 @@ impl Keypair {
         }
     }
 
+    /// Serializes the secret key material to its binary representation.
+    ///
+    /// # Returns
+    /// A vector of bytes containing the secret key material only (excluding the key tag).
+    ///
+    /// # Security
+    /// Handle this output with care, as it contains sensitive private key material.
     pub fn secret_to_vec(&self) -> Vec<u8> {
         match self {
             Self::Secp256k1(keypair) => keypair.secret_to_vec(),

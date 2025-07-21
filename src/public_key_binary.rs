@@ -1,6 +1,11 @@
 use crate::{Error, KeyTag, PublicKey, Result};
 use std::{convert::TryFrom, fmt, str::FromStr};
 
+/// An intermediate binary representation of a public key.
+///
+/// `PublicKeyBinary` wraps the raw bytes of a public key, including its key tag, and provides convenient
+/// conversions to and from [`PublicKey`], byte slices, and base58-encoded strings. This is useful for
+/// serialization, deserialization, and as a database-friendly format.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PublicKeyBinary(Vec<u8>);
 
@@ -16,6 +21,13 @@ impl fmt::Debug for PublicKeyBinary {
 }
 
 impl From<PublicKey> for PublicKeyBinary {
+    /// Converts a [`PublicKey`] into its binary representation.
+    ///
+    /// # Arguments
+    /// * `value` - The [`PublicKey`] to convert.
+    ///
+    /// # Returns
+    /// A `PublicKeyBinary` containing the serialized bytes of the public key.
     fn from(value: PublicKey) -> Self {
         Self(value.to_vec())
     }
@@ -41,6 +53,13 @@ impl From<PublicKeyBinary> for Vec<u8> {
 
 impl TryFrom<PublicKeyBinary> for PublicKey {
     type Error = Error;
+    /// Attempts to parse a [`PublicKey`] from its binary representation.
+    ///
+    /// # Arguments
+    /// * `value` - The `PublicKeyBinary` to parse.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes do not represent a valid public key.
     fn try_from(value: PublicKeyBinary) -> Result<Self> {
         Self::try_from(value.0)
     }
@@ -54,6 +73,13 @@ impl AsRef<[u8]> for PublicKeyBinary {
 
 impl std::str::FromStr for PublicKeyBinary {
     type Err = Error;
+    /// Parses a `PublicKeyBinary` from a base58-encoded string.
+    ///
+    /// # Arguments
+    /// * `s` - The base58-encoded string.
+    ///
+    /// # Errors
+    /// Returns an error if the string is not valid base58 or does not decode to a valid public key binary.
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut data = bs58::decode(s).with_check(Some(0)).into_vec()?;
         Ok(Self(data.split_off(1)))
@@ -61,6 +87,10 @@ impl std::str::FromStr for PublicKeyBinary {
 }
 
 impl std::fmt::Display for PublicKeyBinary {
+    /// Formats the `PublicKeyBinary` as a base58-encoded string, suitable for display or storage.
+    ///
+    /// # Returns
+    /// A base58-encoded string representation of the public key binary.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         // allocate one extra byte for the base58 version
         let mut data = vec![0u8; self.0.len() + 1];

@@ -22,7 +22,9 @@ pub trait PublicKeySize {
 /// A public key representing any of the supported public key types on a given
 /// network.
 ///
-/// Public keys can convert to and from their binary and base58 representation
+/// This struct acts as a type-erased wrapper for all supported public key types (e.g., Ed25519, Secp256k1, ECC Compact, etc.),
+/// allowing generic handling of serialization, deserialization, and verification.
+/// Public keys can be converted to and from their binary and base58 representations.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PublicKey {
     /// The network this public key is valid for
@@ -370,12 +372,21 @@ impl PublicKey {
         }
     }
 
-    /// Construct a public key from its binary form
+    /// Constructs a public key from its binary representation.
+    ///
+    /// # Arguments
+    /// * `bytes` - A byte slice containing the binary representation of the public key.
+    ///
+    /// # Errors
+    /// Returns an error if the bytes do not represent a valid public key for the expected type.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self> {
         Self::try_from(bytes.as_ref())
     }
 
-    /// Convert a public key to it's binary form.
+    /// Serializes the public key to its binary representation.
+    ///
+    /// # Returns
+    /// A vector of bytes containing the serialized public key, including the key tag and key material.
     pub fn to_vec(&self) -> Vec<u8> {
         let mut result = vec![0u8; self.public_key_size()];
         // Unwrap ok here since we've allocated enough space for the output
@@ -384,7 +395,10 @@ impl PublicKey {
         result
     }
 
-    /// Get the type for this key
+    /// Returns the type of this public key (e.g., Ed25519, Secp256k1, etc.).
+    ///
+    /// # Returns
+    /// The `KeyType` variant corresponding to the underlying public key.
     pub fn key_type(&self) -> KeyType {
         match self.inner {
             PublicKeyRepr::EccCompact(..) => KeyType::EccCompact,
@@ -397,7 +411,9 @@ impl PublicKey {
         }
     }
 
-    /// Get the tag for this key
+    /// Returns the key tag for this public key, encoding the network and key type.
+    ///
+    /// The key tag is used to identify the network and cryptographic algorithm associated with this public key.
     pub fn key_tag(&self) -> KeyTag {
         KeyTag {
             network: self.network,
@@ -405,6 +421,10 @@ impl PublicKey {
         }
     }
 
+    /// Returns the size in bytes of the public key, including any prefix bytes.
+    ///
+    /// # Returns
+    /// The length in bytes of the serialized public key for the underlying type.
     pub fn public_key_size(&self) -> usize {
         match &self.inner {
             PublicKeyRepr::EccCompact(..) => ecc_compact::PublicKey::PUBLIC_KEY_SIZE,
