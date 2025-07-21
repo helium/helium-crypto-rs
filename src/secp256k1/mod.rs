@@ -48,7 +48,7 @@ impl TryFrom<&[u8]> for Keypair {
     type Error = super::error::Error;
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
-        let secret = k256::SecretKey::from_be_bytes(&input[1..])?;
+        let secret = k256::SecretKey::from_slice(&input[1..])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
@@ -81,7 +81,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = k256::SecretKey::from_be_bytes(entropy)?;
+        let secret = k256::SecretKey::from_slice(entropy)?;
         let public_key = secret.public_key();
         Ok(Keypair {
             network,
@@ -109,22 +109,6 @@ impl Keypair {
     }
 }
 
-impl signature::Signature for Signature {
-    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(signature::Signature::from_bytes(input)?))
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-}
-
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 impl signature::Signer<Signature> for Keypair {
     fn try_sign(&self, msg: &[u8]) -> std::result::Result<Signature, signature::Error> {
         Ok(Signature(self.secret.sign(msg)))
@@ -133,7 +117,9 @@ impl signature::Signer<Signature> for Keypair {
 
 impl Signature {
     pub fn from_be_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+        ecdsa::Signature::try_from(bytes)
+            .map(Signature)
+            .map_err(error::Error::from)
     }
 
     pub fn to_vec(&self) -> Vec<u8> {

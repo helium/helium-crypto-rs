@@ -1,7 +1,7 @@
 use crate::*;
 use p256::{
     ecdsa,
-    elliptic_curve::{ecdh, sec1::ToCompactEncodedPoint, DecompactPoint},
+    elliptic_curve::{ecdh, point::DecompactPoint, sec1::ToCompactEncodedPoint},
     FieldBytes,
 };
 use std::{hash::Hasher, ops::Deref};
@@ -29,7 +29,7 @@ pub trait IsCompactable {
 
 impl IsCompactable for p256::PublicKey {
     fn is_compactable(&self) -> bool {
-        self.as_affine().to_compact_encoded_point().is_some()
+        self.as_affine().to_compact_encoded_point().is_some().into()
     }
 }
 
@@ -61,7 +61,7 @@ impl TryFrom<&[u8]> for Keypair {
     fn try_from(input: &[u8]) -> Result<Self> {
         let network = Network::try_from(input[0])?;
         let secret =
-            p256::SecretKey::from_be_bytes(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
+            p256::SecretKey::from_slice(&input[1..usize::min(input.len(), KEYPAIR_LENGTH)])?;
         let public_key =
             public_key::PublicKey::for_network(network, PublicKey(secret.public_key()));
         Ok(Keypair {
@@ -98,7 +98,7 @@ impl Keypair {
     }
 
     pub fn generate_from_entropy(network: Network, entropy: &[u8]) -> Result<Keypair> {
-        let secret = p256::SecretKey::from_be_bytes(entropy)?;
+        let secret = p256::SecretKey::from_slice(entropy)?;
         let public_key = secret.public_key();
         if !public_key.is_compactable() {
             return Err(Error::not_compact());
@@ -133,26 +133,10 @@ impl Keypair {
         C: TryInto<&'a PublicKey, Error = Error>,
     {
         let public_key = public_key.try_into()?;
-        let secret_key = p256::SecretKey::from_be_bytes(&self.secret.to_bytes())?;
+        let secret_key = p256::SecretKey::from_slice(&self.secret.to_bytes())?;
         let shared_secret =
             ecdh::diffie_hellman(secret_key.to_nonzero_scalar(), public_key.0.as_affine());
         Ok(SharedSecret(shared_secret))
-    }
-}
-
-impl signature::Signature for Signature {
-    fn from_bytes(input: &[u8]) -> std::result::Result<Self, signature::Error> {
-        Ok(Signature(signature::Signature::from_bytes(input)?))
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-}
-
-impl AsRef<[u8]> for Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
     }
 }
 
@@ -164,7 +148,9 @@ impl signature::Signer<Signature> for Keypair {
 
 impl Signature {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(Signature(signature::Signature::from_bytes(bytes)?))
+        ecdsa::Signature::try_from(bytes)
+            .map(Signature)
+            .map_err(error::Error::from)
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -210,14 +196,16 @@ impl TryFrom<&[u8]> for PublicKey {
             use p256::elliptic_curve::sec1::FromEncodedPoint;
             let encoded_point =
                 p256::EncodedPoint::from_bytes(input).map_err(p256::elliptic_curve::Error::from)?;
+
             // Convert to an affine point, then to the compact encoded form.
             // Then finally convert to the p256 public key.
-            let public_key = Option::from(p256::AffinePoint::from_encoded_point(&encoded_point))
-                .and_then(|affine_point: p256::AffinePoint| affine_point.to_compact_encoded_point())
-                .and_then(|compact_point| {
-                    Option::from(p256::PublicKey::from_encoded_point(&compact_point))
-                });
-            Ok(PublicKey(public_key.ok_or_else(Error::not_compact)?))
+            let public_key = p256::AffinePoint::from_encoded_point(&encoded_point)
+                .and_then(|affine_point| affine_point.to_compact_encoded_point())
+                .and_then(|compact_point| p256::PublicKey::from_encoded_point(&compact_point));
+
+            // Break out of constant time operations
+            let pub_key_opt = Option::from(public_key);
+            Ok(PublicKey(pub_key_opt.ok_or_else(Error::not_compact)?))
         }
     }
 }
@@ -358,6 +346,9 @@ mod tests {
         // And now do an ecdh with my keypair and the other public key and
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
-        assert_eq!(shared_secret.as_bytes().as_slice(), OTHER_SHARED_SECRET);
+        assert_eq!(
+            shared_secret.raw_secret_bytes().as_slice(),
+            OTHER_SHARED_SECRET
+        );
     }
 }
