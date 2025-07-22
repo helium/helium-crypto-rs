@@ -1,0 +1,42 @@
+{
+    "name": "Rust Linux Development",
+    "image": "mcr.microsoft.com/devcontainers/rust:1-bullseye",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "username": "vscode",
+            "upgradePackages": true
+        }
+    },
+    "runArgs": [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml",
+                "serayuzgur.crates"
+            ],
+            "settings": {
+                "rust-analyzer.server.path": "/usr/local/cargo/bin/rust-analyzer",
+                "rust-analyzer.cargo.extraEnv": {
+                    "LIBCLANG_PATH": "/usr/lib/llvm-11/lib"
+                },
+                "rust-analyzer.server.extraEnv": {
+                    "LIBCLANG_PATH": "/usr/lib/llvm-11/lib"
+                },
+                "rust-analyzer.check.extraEnv": {
+                    "LIBCLANG_PATH": "/usr/lib/llvm-11/lib"
+                }
+            }
+        }
+    },
+    "containerEnv": {
+        "LIBCLANG_PATH": "/usr/lib/llvm-11/lib"
+    },
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y pkg-config libtss2-dev libssl-dev libtss2-dev llvm-11-dev clang-11 libclang-11-dev && export LIBCLANG_PATH=/usr/lib/llvm-11/lib",
+    "remoteUser": "vscode"
+}
