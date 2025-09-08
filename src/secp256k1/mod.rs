@@ -10,6 +10,7 @@ pub struct PublicKey(k256::PublicKey);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(ecdsa::Signature);
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

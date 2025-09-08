@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct TzRsaKeyInfo {
     key_name: String,
     rsa_key: RSAPublicKey,

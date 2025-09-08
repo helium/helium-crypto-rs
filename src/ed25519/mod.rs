@@ -7,6 +7,7 @@ pub struct PublicKey(pub(crate) ed25519_compact::PublicKey);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(ed25519_compact::Signature);
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

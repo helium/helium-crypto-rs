@@ -32,7 +32,7 @@ impl From<tss_esapi::Error> for Error {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct KeypairHandle {
     pub network: Network,
     pub public_key: public_key::PublicKey,

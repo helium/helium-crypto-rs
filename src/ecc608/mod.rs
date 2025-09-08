@@ -16,6 +16,7 @@ use std::{
 static INIT: Once = Once::new();
 static ECC: Mutex<Option<Ecc>> = Mutex::new(None);
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

@@ -13,7 +13,7 @@ pub trait Sign {
 ///
 /// This enum acts as a type-erased wrapper for all supported keypair types (e.g., Ed25519, Secp256k1, ECC Compact, etc.),
 /// allowing generic handling of key generation, signing, and public key extraction.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Keypair {
     Secp256k1(secp256k1::Keypair),
     Ed25519(ed25519::Keypair),

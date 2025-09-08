@@ -20,6 +20,7 @@ pub enum Error {
     QseecomError(#[from] io::Error),
 }
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

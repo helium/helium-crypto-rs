@@ -13,6 +13,7 @@ pub struct PublicKey(pub(crate) RSAPublicKey);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(pub(crate) Vec<u8>);
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,

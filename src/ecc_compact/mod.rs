@@ -14,6 +14,7 @@ pub struct SharedSecret(pub(crate) p256::ecdh::SharedSecret);
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Signature(pub(crate) ecdsa::Signature);
 
+#[derive(Clone)]
 pub struct Keypair {
     pub network: Network,
     pub public_key: public_key::PublicKey,
