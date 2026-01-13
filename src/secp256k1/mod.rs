@@ -105,7 +105,7 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.to_bytes().as_slice().to_vec()
+        self.secret.to_bytes().to_vec()
     }
 }
 
@@ -182,7 +182,7 @@ impl ReadFrom for PublicKey {
         use k256::elliptic_curve::sec1::FromEncodedPoint;
         let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
         input.read_exact(&mut buf)?;
-        match k256::EncodedPoint::from_bytes(k256::FieldBytes::from_slice(&buf)).into() {
+        match k256::EncodedPoint::from_bytes(buf).into() {
             Some(Ok(point)) => Ok(PublicKey(
                 // If the encoded point did not projected onto the k256 curve, this unwrap would fail
                 k256::PublicKey::from_encoded_point(&point).unwrap(),

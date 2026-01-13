@@ -125,7 +125,7 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.to_bytes().as_slice().to_vec()
+        self.secret.to_bytes().to_vec()
     }
 
     pub fn ecdh<'a, C>(&self, public_key: C) -> Result<SharedSecret>
@@ -214,7 +214,7 @@ impl ReadFrom for PublicKey {
     fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
         let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
         input.read_exact(&mut buf)?;
-        match p256::AffinePoint::decompact(FieldBytes::from_slice(&buf)).into() {
+        match p256::AffinePoint::decompact(&FieldBytes::from(buf)).into() {
             Some(point) => Ok(PublicKey(
                 p256::PublicKey::from_affine(point).map_err(Error::from)?,
             )),
@@ -347,8 +347,8 @@ mod tests {
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
         assert_eq!(
-            shared_secret.raw_secret_bytes().as_slice(),
-            OTHER_SHARED_SECRET
+            shared_secret.raw_secret_bytes()[..],
+            OTHER_SHARED_SECRET[..]
         );
     }
 }
