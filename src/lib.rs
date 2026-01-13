@@ -68,27 +68,23 @@ use std::{
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize, PartialOrd, Ord)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Hash, serde::Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Network {
+    #[default]
     MainNet,
     TestNet,
 }
 
 impl Copy for Network {}
 
-impl Default for Network {
-    fn default() -> Self {
-        Self::MainNet
-    }
-}
-
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
-#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyType {
     Secp256k1,
+    #[default]
     Ed25519,
     #[serde(rename = "ecc_compact")]
     EccCompact,
@@ -99,12 +95,6 @@ pub enum KeyType {
 }
 
 impl Copy for KeyType {}
-
-impl Default for KeyType {
-    fn default() -> Self {
-        Self::Ed25519
-    }
-}
 
 /// A keytag is the byte prefix tag for both public and private keys in their
 /// binary form. A tag encodes both the network and the type of key.
