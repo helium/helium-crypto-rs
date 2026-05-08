@@ -25,7 +25,7 @@ jobs:
       - name: Setup | Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtss2-dev
+          sudo apt-get install -y libtss2-dev libudev-dev
 
       - name: Setup | Rust
         uses: dtolnay/rust-toolchain@stable
@@ -64,7 +64,7 @@ jobs:
       - name: Setup | Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtss2-dev
+          sudo apt-get install -y libtss2-dev libudev-dev
 
       - name: Setup | Cache
         uses: Swatinem/rust-cache@v2
