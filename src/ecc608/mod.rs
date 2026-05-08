@@ -1,3 +1,6 @@
+// p256 0.13 GenericArray::from_slice deprecation; allow until upgrade.
+#![allow(deprecated)]
+
 use crate::{
     ecc_compact::{self, Signature},
     keypair, public_key, Error, KeyTag, KeyType as CrateKeyType, Network, Result,

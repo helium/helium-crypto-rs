@@ -1,3 +1,6 @@
+// p256 0.13 GenericArray::as_slice deprecation; allow until upgrade.
+#![allow(deprecated)]
+
 mod esys_wrapper;
 
 use crate::{

@@ -240,11 +240,12 @@ mod tests {
 
     #[test]
     #[cfg(feature = "solana")]
+    #[allow(deprecated)] // solana-keypair 2.3+ deprecates from_bytes; 2.2 has no TryFrom impl yet.
     fn solana_pubkey() {
         use solana_sdk::signature as solana_sdk;
         use std::convert::TryInto;
 
-        let solana_wallet = solana_sdk::Keypair::try_from(&BYTES[..]).unwrap();
+        let solana_wallet = solana_sdk::Keypair::from_bytes(&BYTES[..]).unwrap();
         let solana_pubkey = solana_sdk::Signer::pubkey(&solana_wallet);
 
         let entropy = &BYTES[..32];
