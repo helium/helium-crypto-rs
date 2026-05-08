@@ -24,11 +24,6 @@ pub enum Error {
     #[error("ecc608 error")]
     Ecc608(#[from] ecc608_linux::Error),
 
-    #[cfg(feature = "multisig")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "multisig")))]
-    #[error("multisig error")]
-    MultiSig(#[from] crate::multisig::Error),
-
     #[cfg(feature = "tpm")]
     #[cfg_attr(docsrs, doc(cfg(feature = "tpm")))]
     #[error("TPM error")]

@@ -1,3 +1,8 @@
+// k256 0.13 still uses generic-array 0.x, whose `as_slice` and
+// `from_slice` methods are deprecated. Crate-wide allow until k256
+// upgrades.
+#![allow(deprecated)]
+
 use crate::*;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use k256::{ecdsa, elliptic_curve::sec1::ToEncodedPoint};

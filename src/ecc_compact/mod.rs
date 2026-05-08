@@ -1,3 +1,8 @@
+// p256 0.13 still uses generic-array 0.x, whose `as_slice` and
+// `from_slice` methods are deprecated. Crate-wide allow until p256
+// upgrades.
+#![allow(deprecated)]
+
 use crate::*;
 use p256::{
     ecdsa,

@@ -43,12 +43,6 @@ pub mod rsa;
 #[cfg(feature = "nova-tz")]
 pub mod nova_tz;
 
-#[cfg(feature = "multisig")]
-pub mod multisig;
-
-#[cfg(feature = "multisig")]
-pub use multihash;
-
 pub mod error;
 pub mod public_key;
 pub mod public_key_binary;
@@ -68,43 +62,31 @@ use std::{
 
 /// Keys are generated for a given network. Supported networks are mainnet and
 /// testnet. The default network is mainnet.
-#[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize, PartialOrd, Ord, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Network {
+    #[default]
     MainNet,
     TestNet,
 }
 
 impl Copy for Network {}
 
-impl Default for Network {
-    fn default() -> Self {
-        Self::MainNet
-    }
-}
-
 /// Key types are the supported types of keys for either public or private keys.
 /// The default key type is ed25519.
-#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum KeyType {
     Secp256k1,
+    #[default]
     Ed25519,
     #[serde(rename = "ecc_compact")]
     EccCompact,
-    #[cfg(feature = "multisig")]
-    MultiSig,
     #[cfg(feature = "rsa")]
     Rsa,
 }
 
 impl Copy for KeyType {}
-
-impl Default for KeyType {
-    fn default() -> Self {
-        Self::Ed25519
-    }
-}
 
 /// A keytag is the byte prefix tag for both public and private keys in their
 /// binary form. A tag encodes both the network and the type of key.
@@ -179,8 +161,6 @@ impl FromStr for KeyType {
             KEYTYPE_SECP256K1_STR => Ok(Self::Secp256k1),
             KEYTYPE_ED25519_STR => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT_STR => Ok(Self::EccCompact),
-            #[cfg(feature = "multisig")]
-            KEYTYPE_MULTISIG_STR => Ok(Self::MultiSig),
             #[cfg(feature = "rsa")]
             KEYTYPE_RSA_STR => Ok(Self::Rsa),
             _ => Err(Error::invalid_keytype_str(s)),
@@ -194,8 +174,6 @@ impl fmt::Display for KeyType {
             Self::Secp256k1 => KEYTYPE_SECP256K1_STR,
             Self::Ed25519 => KEYTYPE_ED25519_STR,
             Self::EccCompact => KEYTYPE_ECC_COMPACT_STR,
-            #[cfg(feature = "multisig")]
-            Self::MultiSig => KEYTYPE_MULTISIG_STR,
             #[cfg(feature = "rsa")]
             Self::Rsa => KEYTYPE_RSA_STR,
         })
@@ -209,8 +187,6 @@ impl TryFrom<u8> for KeyType {
             KEYTYPE_SECP256K1 => Ok(Self::Secp256k1),
             KEYTYPE_ED25519 => Ok(Self::Ed25519),
             KEYTYPE_ECC_COMPACT => Ok(Self::EccCompact),
-            #[cfg(feature = "multisig")]
-            KEYTYPE_MULTISIG => Ok(Self::MultiSig),
             #[cfg(feature = "rsa")]
             KEYTYPE_RSA => Ok(Self::Rsa),
             _ => Err(Error::invalid_keytype(v)),
@@ -223,8 +199,6 @@ impl From<KeyType> for u8 {
         match v {
             KeyType::EccCompact => KEYTYPE_ECC_COMPACT,
             KeyType::Ed25519 => KEYTYPE_ED25519,
-            #[cfg(feature = "multisig")]
-            KeyType::MultiSig => KEYTYPE_MULTISIG,
             KeyType::Secp256k1 => KEYTYPE_SECP256K1,
             #[cfg(feature = "rsa")]
             KeyType::Rsa => KEYTYPE_RSA,
@@ -244,19 +218,19 @@ impl ReadFrom for KeyTag {
 pub const KEYTYPE_RSA: u8 = 0x04;
 /// The type tag for encoded secp256k1 keys.
 pub const KEYTYPE_SECP256K1: u8 = 0x03;
-/// The type tag for multisig keys.
-pub const KEYTYPE_MULTISIG: u8 = 0x02;
 /// The type tag for encoded ed25519 keys.
 pub const KEYTYPE_ED25519: u8 = 0x01;
 // The type tag for encoded ecc_compact keys
 pub const KEYTYPE_ECC_COMPACT: u8 = 0x00;
+// 0x02 is reserved: it was used for the removed `multisig` key type
+// (Helium L1 multisig). Do not reuse — old multisig-tagged bytes that
+// survive somewhere in the wild would silently misdecode as a new
+// type. New key types should pick a fresh tag.
 
 /// The string representation of the rsa key type
 pub const KEYTYPE_RSA_STR: &str = "rsa";
 /// The string representation of the secp256k1 key type
 pub const KEYTYPE_SECP256K1_STR: &str = "secp256k1";
-/// The string representation of the multisig key type
-pub const KEYTYPE_MULTISIG_STR: &str = "multisig";
 /// The string representation of the ed25519 key type
 pub const KEYTYPE_ED25519_STR: &str = "ed25519";
 /// The string representation of the ecc_compact key type
@@ -342,9 +316,6 @@ mod tests {
             "unknown variant `other`, expected one of `secp256k1`, `ed25519`, `ecc_compact`"
                 .to_string();
 
-        if cfg!(feature = "multisig") {
-            deser_err.push_str(", `multisig`");
-        }
         if cfg!(feature = "rsa") {
             deser_err.push_str(", `rsa`");
         }
