@@ -43,6 +43,9 @@ pub mod rsa;
 #[cfg(feature = "nova-tz")]
 pub mod nova_tz;
 
+#[cfg(feature = "ledger")]
+pub mod ledger;
+
 pub mod error;
 pub mod public_key;
 pub mod public_key_binary;

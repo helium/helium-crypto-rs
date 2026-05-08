@@ -26,6 +26,8 @@ pub enum Keypair {
     Rsa(Box<rsa::Keypair>),
     #[cfg(feature = "nova-tz")]
     TrustZone(nova_tz::Keypair),
+    #[cfg(feature = "ledger")]
+    Ledger(ledger::Keypair),
 }
 
 pub struct SharedSecret(ecc_compact::SharedSecret);
@@ -44,6 +46,8 @@ impl Sign for Keypair {
             Self::Rsa(keypair) => keypair.sign(msg),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => keypair.sign(msg),
+            #[cfg(feature = "ledger")]
+            Self::Ledger(keypair) => keypair.sign(msg),
         }
     }
 }
@@ -125,6 +129,8 @@ impl Keypair {
             Self::Rsa(keypair) => keypair.key_tag(),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => keypair.key_tag(),
+            #[cfg(feature = "ledger")]
+            Self::Ledger(keypair) => keypair.key_tag(),
         }
     }
 
@@ -144,6 +150,8 @@ impl Keypair {
             Self::Rsa(keypair) => &keypair.public_key,
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(keypair) => &keypair.public_key,
+            #[cfg(feature = "ledger")]
+            Self::Ledger(keypair) => &keypair.public_key,
         }
     }
 
@@ -185,6 +193,8 @@ impl Keypair {
             Self::TPMHandle(_) => panic!("not supported"),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
+            #[cfg(feature = "ledger")]
+            Self::Ledger(_) => panic!("not supported"),
         }
     }
 
@@ -208,6 +218,8 @@ impl Keypair {
             Self::TPMHandle(_) => panic!("not supported"),
             #[cfg(feature = "nova-tz")]
             Self::TrustZone(_) => panic!("not supported"),
+            #[cfg(feature = "ledger")]
+            Self::Ledger(_) => panic!("not supported"),
         }
     }
 }
@@ -255,6 +267,13 @@ impl From<ecc608::Keypair> for Keypair {
 impl From<tpm::KeypairHandle> for Keypair {
     fn from(keypair: tpm::KeypairHandle) -> Self {
         Self::TPMHandle(keypair)
+    }
+}
+
+#[cfg(feature = "ledger")]
+impl From<ledger::Keypair> for Keypair {
+    fn from(keypair: ledger::Keypair) -> Self {
+        Self::Ledger(keypair)
     }
 }
 

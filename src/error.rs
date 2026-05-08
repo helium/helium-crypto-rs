@@ -34,6 +34,11 @@ pub enum Error {
     #[error("TrustZone error")]
     TrustZone(#[from] crate::nova_tz::Error),
 
+    #[cfg(feature = "ledger")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ledger")))]
+    #[error(transparent)]
+    Ledger(#[from] crate::ledger::Error),
+
     #[error("secp256k1 error")]
     Secp256k1(#[from] crate::secp256k1::Error),
 
