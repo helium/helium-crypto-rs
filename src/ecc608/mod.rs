@@ -1,4 +1,6 @@
-// p256 0.13 GenericArray::from_slice deprecation; allow until upgrade.
+// See the matching comment in `src/ecc_compact/mod.rs` — generic-array
+// 0.14.9 is crate-level deprecated; this module reaches it via `p256 0.13`.
+// Migration waits on `p256 0.14` shipping stable.
 #![allow(deprecated)]
 
 use crate::{
@@ -104,7 +106,7 @@ impl Keypair {
         let shared_secret_bytes =
             with_ecc(|ecc| ecc.ecdh(self.slot, point.x().unwrap(), point.y().unwrap()))?;
         Ok(ecc_compact::SharedSecret(p256::ecdh::SharedSecret::from(
-            *p256::FieldBytes::from_slice(&shared_secret_bytes),
+            p256::FieldBytes::clone_from_slice(&shared_secret_bytes),
         )))
     }
 }
