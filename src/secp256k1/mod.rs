@@ -1,6 +1,7 @@
-// k256 0.13 still uses generic-array 0.x, whose `as_slice` and
-// `from_slice` methods are deprecated. Crate-wide allow until k256
-// upgrades.
+// See the matching comment in `src/ecc_compact/mod.rs` — generic-array
+// 0.14.9 is crate-level deprecated; `k256 0.13` transitively re-exports
+// it, so every reachable item trips the lint. Migration waits on
+// `k256 0.14` shipping stable.
 #![allow(deprecated)]
 
 use crate::*;
@@ -110,7 +111,8 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.to_bytes().as_slice().to_vec()
+        // GenericArray<u8, U32> derefs to [u8]; resolve `to_vec` via that.
+        self.secret.to_bytes().to_vec()
     }
 }
 
@@ -187,7 +189,13 @@ impl ReadFrom for PublicKey {
         use k256::elliptic_curve::sec1::FromEncodedPoint;
         let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
         input.read_exact(&mut buf)?;
-        match k256::EncodedPoint::from_bytes(k256::FieldBytes::from_slice(&buf)).into() {
+        // `buf` holds the SEC1-compressed encoding (1 prefix byte + 32-byte X);
+        // pass it directly to `EncodedPoint::from_bytes`. The previous wrapping
+        // in `FieldBytes::from_slice` was a latent panic — `FieldBytes` is 32
+        // bytes (`GenericArray<u8, U32>`) and `from_slice` asserts equal length,
+        // so any 33-byte input would panic. The path is unreachable from
+        // current internal callers but is part of the public `ReadFrom` trait.
+        match k256::EncodedPoint::from_bytes(buf).into() {
             Some(Ok(point)) => Ok(PublicKey(
                 // If the encoded point did not projected onto the k256 curve, this unwrap would fail
                 k256::PublicKey::from_encoded_point(&point).unwrap(),
@@ -352,6 +360,22 @@ mod tests {
         const B58: &str = "1SpLY6fic4fGthLGjeAUdLVNVYk1gJGrWTGhsukm2dnELaSEQmhL";
         let decoded: crate::PublicKey = B58.parse().expect("b58 public key");
         assert_eq!(B58, decoded.to_string());
+    }
+
+    #[test]
+    fn read_from_roundtrip() {
+        // Exercises `crate::PublicKey::read_from` -> `secp256k1::PublicKey::read_from`,
+        // which previously wrapped the 33-byte SEC1 buffer in a 32-byte
+        // `FieldBytes` and would panic. The b58 path (`try_from`) does not
+        // hit that branch, so this is the only covering test.
+        use crate::{ReadFrom, WriteTo};
+        const B58: &str = "1SpLY6fic4fGthLGjeAUdLVNVYk1gJGrWTGhsukm2dnELaSEQmhL";
+        let original: crate::PublicKey = B58.parse().expect("b58 public key");
+        let mut buf = Vec::new();
+        original.write_to(&mut buf).expect("encode");
+        let mut cursor = std::io::Cursor::new(&buf[..]);
+        let decoded = crate::PublicKey::read_from(&mut cursor).expect("read_from");
+        assert_eq!(original, decoded);
     }
 
     #[test]

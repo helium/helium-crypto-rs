@@ -1,4 +1,6 @@
-// p256 0.13 GenericArray::as_slice deprecation; allow until upgrade.
+// See the matching comment in `src/ecc_compact/mod.rs` — generic-array
+// 0.14.9 is crate-level deprecated; this module reaches it via `p256 0.13`.
+// Migration waits on `p256 0.14` shipping stable.
 #![allow(deprecated)]
 
 mod esys_wrapper;
@@ -94,8 +96,8 @@ impl KeypairHandle {
         use p256::elliptic_curve::sec1::ToEncodedPoint;
         let key = public_key.try_into()?;
         let point = key.0.to_encoded_point(false);
-        let x = point.x().unwrap().as_slice();
-        let y = point.y().unwrap().as_slice();
+        let x: &[u8] = point.x().unwrap().as_ref();
+        let y: &[u8] = point.y().unwrap().as_ref();
         let key_handle = self.handle;
 
         let mut shared_secret_bytes = vec![4u8];

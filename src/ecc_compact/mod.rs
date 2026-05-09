@@ -1,6 +1,11 @@
-// p256 0.13 still uses generic-array 0.x, whose `as_slice` and
-// `from_slice` methods are deprecated. Crate-wide allow until p256
-// upgrades.
+// `generic-array 0.14.9`'s build script unconditionally annotates the crate
+// with `#![deprecated(note = "please upgrade to generic-array 1.x")]`, so
+// every item reachable through `p256 0.13` (which transitively re-exports
+// generic-array 0.14) trips the lint — including `AsRef<[u8]>`, `From`
+// impls, and the typed `FieldBytes` alias. The migration runs through
+// `p256 0.14` (which moves to `hybrid-array`), but that release is still
+// RC-only as of this commit; pulling an RC into a foundational crypto
+// crate is the wrong trade-off. Revisit when `p256 0.14` ships stable.
 #![allow(deprecated)]
 
 use crate::*;
@@ -130,7 +135,8 @@ impl Keypair {
     }
 
     pub fn secret_to_vec(&self) -> Vec<u8> {
-        self.secret.to_bytes().as_slice().to_vec()
+        // GenericArray<u8, U32> derefs to [u8]; resolve `to_vec` via that.
+        self.secret.to_bytes().to_vec()
     }
 
     pub fn ecdh<'a, C>(&self, public_key: C) -> Result<SharedSecret>
@@ -219,7 +225,7 @@ impl ReadFrom for PublicKey {
     fn read_from<R: std::io::Read>(input: &mut R) -> Result<Self> {
         let mut buf = [0u8; PUBLIC_KEY_LENGTH - 1];
         input.read_exact(&mut buf)?;
-        match p256::AffinePoint::decompact(FieldBytes::from_slice(&buf)).into() {
+        match p256::AffinePoint::decompact(&FieldBytes::from(buf)).into() {
             Some(point) => Ok(PublicKey(
                 p256::PublicKey::from_affine(point).map_err(Error::from)?,
             )),
@@ -351,9 +357,6 @@ mod tests {
         // And now do an ecdh with my keypair and the other public key and
         // compare it with the shared secret that the erlang ecdh generated
         let shared_secret = keypair.ecdh(&other_public_key).expect("shared secret");
-        assert_eq!(
-            shared_secret.raw_secret_bytes().as_slice(),
-            OTHER_SHARED_SECRET
-        );
+        assert_eq!(&shared_secret.raw_secret_bytes()[..], OTHER_SHARED_SECRET);
     }
 }
