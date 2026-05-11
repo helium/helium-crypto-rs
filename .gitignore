@@ -2,3 +2,4 @@ target
 .envrc
 Cargo.lock
 *.profraw
+.DS_Store
