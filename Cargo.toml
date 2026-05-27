@@ -43,6 +43,7 @@ solana-sdk = { version = ">= 2.3, < 3", optional = true }
 uuid = { version = "1", features = ["v4", "fast-rng"], optional = true }
 ledger-transport-hid = { version = "0.11", optional = true }
 ledger-apdu = { version = "0.11", optional = true }
+hex = "0"
 
 [features]
 default = ["rsa"]
@@ -55,7 +56,6 @@ solana = ["solana-sdk"]
 ledger = ["ledger-transport-hid", "ledger-apdu"]
 
 [dev-dependencies]
-hex = "0"
 hex-literal = "0"
 serde_json = "1"
 rand = { version = "0.8", features = ["getrandom"] }

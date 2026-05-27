@@ -100,6 +100,29 @@ impl std::fmt::Display for PublicKeyBinary {
     }
 }
 
+use hex::ToHex;
+
+impl fmt::LowerHex for PublicKeyBinary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.encode_hex::<String>())
+    }
+}
+
+impl fmt::UpperHex for PublicKeyBinary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.encode_hex_upper::<String>())
+    }
+}
+
+impl hex::FromHex for PublicKeyBinary {
+    type Error = Error;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> std::result::Result<Self, Self::Error> {
+        let data = hex::decode(hex)?;
+        Ok(Self(data))
+    }
+}
+
 use serde::{
     de::{self, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -246,5 +269,24 @@ mod tests {
         let serialized = serde_json::to_string(&orig_pub_key).unwrap();
         let deserialized = serde_json::from_str(&serialized).unwrap();
         assert_eq!(orig_pub_key, deserialized);
+    }
+
+    #[test]
+    fn hex_roundtrip() {
+        use hex::FromHex;
+
+        let orig_pubkey = parse_pubkey(&DEFAULT_BYTES);
+        let lower_hex = orig_pubkey.encode_hex::<String>();
+        let upper_hex = orig_pubkey.encode_hex_upper::<String>();
+
+        assert_eq!(
+            orig_pubkey,
+            PublicKeyBinary::from_hex(lower_hex).expect("hex lower")
+        );
+
+        assert_eq!(
+            orig_pubkey,
+            PublicKeyBinary::from_hex(upper_hex).expect("hex upper")
+        );
     }
 }

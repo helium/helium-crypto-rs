@@ -52,6 +52,8 @@ pub enum Error {
 pub enum DecodeError {
     #[error("b58 decode error")]
     B58(#[from] bs58::decode::Error),
+    #[error("hex decode error")]
+    Hex(#[from] hex::FromHexError),
     #[error("unrecognized type value {0}")]
     Type(u8),
     #[error("unrecognized type string {0}")]
@@ -66,6 +68,12 @@ pub enum DecodeError {
 
 impl From<bs58::decode::Error> for Error {
     fn from(v: bs58::decode::Error) -> Self {
+        Self::from(DecodeError::from(v))
+    }
+}
+
+impl From<hex::FromHexError> for Error {
+    fn from(v: hex::FromHexError) -> Self {
         Self::from(DecodeError::from(v))
     }
 }
