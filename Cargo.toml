@@ -39,6 +39,7 @@ tss-esapi = { version = "7", optional = true }
 libc = { version = "0", optional = true }
 byteorder = { version = "1", optional = true }
 sqlx = { version = "^0.8", optional = true, default-features = false }
+trino-rust-client = { version = "^0.9", optional = true, default-features = false }
 solana-sdk = { version = ">= 2.3, < 3", optional = true }
 uuid = { version = "1", features = ["v4", "fast-rng"], optional = true }
 ledger-transport-hid = { version = "0.11", optional = true }
@@ -52,6 +53,7 @@ rsa = ["dep:rsa", "byteorder"]
 tpm = ["tss-esapi", "libc", "drop_guard"]
 nova-tz = ["rsa", "uuid"]
 sqlx-postgres = ["sqlx/postgres", "sqlx/runtime-tokio-rustls"]
+trino = ["trino-rust-client"]
 solana = ["solana-sdk"]
 ledger = ["ledger-transport-hid", "ledger-apdu"]
 
