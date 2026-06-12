@@ -211,6 +211,74 @@ mod sqlx_postgres {
     }
 }
 
+#[cfg(feature = "trino")]
+mod trino {
+    //! `trino-rust-client` integration for `PublicKeyBinary`, so it can be used
+    //! directly as a column in `#[derive(Trino)]` rows instead of a `String` +
+    //! parse.
+    //!
+    //! Trino represents the key as a `VARCHAR` (base58), so this delegates to
+    //! `PublicKeyBinary`'s existing base58 serde impls - the same
+    //! representation the Iceberg/Arrow writer already produce.
+
+    use serde::de::{Deserialize, DeserializeSeed, Deserializer};
+    use trino_rust_client::{Context, Trino, TrinoTy};
+
+    use crate::PublicKeyBinary;
+
+    impl Trino for PublicKeyBinary {
+        type ValueType<'a> = &'a PublicKeyBinary; // serialize side: base58 string
+        type Seed<'a, 'de> = PublicKeyBinarySeed;
+
+        fn value(&self) -> Self::ValueType<'_> {
+            self
+        }
+
+        fn ty() -> TrinoTy {
+            TrinoTy::Varchar
+        }
+
+        // Signature mirrors the upstream String/Uuid impls (`&'a Context`).
+        fn seed<'a, 'de>(_ctx: &'a Context<'a>) -> Self::Seed<'a, 'de> {
+            PublicKeyBinarySeed
+        }
+
+        fn empty() -> Self {
+            // Scaffolding placeholder; overwritten during deserialization
+            PublicKeyBinary::from(vec![])
+        }
+    }
+
+    pub struct PublicKeyBinarySeed;
+
+    impl<'de> DeserializeSeed<'de> for PublicKeyBinarySeed {
+        type Value = PublicKeyBinary;
+
+        fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            // The VARCHAR arrives as a JSON string; PublicKeyBinary's Deserialize parses base58.
+            PublicKeyBinary::deserialize(deserializer)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn seed_round_trips_base58() {
+            let key = "11263KvqW3GZPAvag5sQYtBJSjb25azSTSwoi5Tza9kboaLRxcsv";
+
+            let parsed = PublicKeyBinarySeed
+                .deserialize(serde_json::Value::String(key.to_string()))
+                .unwrap();
+            assert_eq!(parsed, key.parse::<PublicKeyBinary>().unwrap());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
